@@ -1,0 +1,16 @@
+[package]
+name = "joie"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bytemuck = { version = "1.13.1", features = ["derive"] }
+memchr = "2.5.0"
+rkyv = "0.7.42"
+smallvec = "1.11.0"
+smartstring = "1.0.1"
+stable-vec = "0.4.0"
+storage = { path = "../storage" }
+unicode-segmentation = "1.10.1"
