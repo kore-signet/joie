@@ -1,5 +1,7 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
+use perfect_map::PerfectMap;
+use rust_stemmers::Stemmer;
 use smartstring::alias::CompactString;
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -36,15 +38,19 @@ impl TermMap {
                     Token {
                         start,
                         end: start + word.len(),
-                        term,
+                        // term,
                     },
                     term,
                 )
             })
             .unzip();
 
-        let mut terms_by_value = terms.iter().copied().enumerate().collect::<Vec<_>>();
-        terms_by_value.sort_by(|(_, lhs), (_, rhs)| lhs.cmp(rhs));
+        let mut terms_by_value: BTreeMap<u32, Vec<usize>> = BTreeMap::new();
+        for (idx, term) in terms.iter().enumerate() {
+            terms_by_value.entry(*term).or_default().push(idx);
+        }
+
+        terms_by_value.values_mut().for_each(|v| v.sort());
 
         Sentence {
             tokens,
@@ -56,14 +62,40 @@ impl TermMap {
     }
 
     pub fn intern(&mut self, term: &str) -> u32 {
-        let l = self.kv.len();
+        let l = self.kv.len() + 1;
+        let term = Stemmer::create(rust_stemmers::Algorithm::English).stem(term);
         *self.kv.entry(term.into()).or_insert(l as u32)
     }
 
-    pub fn tokenize_query(&mut self, query: &str) -> Vec<u32> {
+    pub fn freeze(self) -> FrozenTermMap {
+        dbg!(self.kv.len());
+        FrozenTermMap {
+            map: PerfectMap::from_map(self.kv),
+        }
+    }
+    // pub fn tokenize_query(&mut self, query: &str) -> Vec<u32> {
+    //     query
+    //         .unicode_words()
+    //         .map(|word| self.intern(&word.to_lowercase()))
+    //         .collect()
+    // }
+}
+
+pub struct FrozenTermMap {
+    map: PerfectMap<CompactString, u32>,
+}
+
+impl FrozenTermMap {
+    pub fn term(&self, term: &str) -> Option<u32> {
+        let term = term.to_lowercase();
+        let term = Stemmer::create(rust_stemmers::Algorithm::English).stem(&term);
+        self.map.get(term.as_ref()).copied()
+    }
+
+    pub fn tokenize_phrase(&self, query: &str) -> Vec<u32> {
         query
             .unicode_words()
-            .map(|word| self.intern(&word.to_lowercase()))
+            .map(|word| self.term(word).unwrap_or(0u32))
             .collect()
     }
 }

@@ -2,5 +2,5 @@
 members = ["fatt", "search", "storage"]
 resolver = "2"
 
-# [profile.release]
-# debug ="full"
+[profile.release]
+debug ="full"

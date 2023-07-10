@@ -1,6 +1,7 @@
 /target
 /Cargo.lock
 *.joie
+database/
 
 # Added by cargo
 #

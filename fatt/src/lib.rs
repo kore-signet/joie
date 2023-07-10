@@ -47,7 +47,7 @@ pub struct Episode {
     pub download: Option<DownloadOptions>,
 }
 
-#[derive(rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, Clone, Debug)]
+#[derive(rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, Clone, Debug, Default)]
 pub struct StoredEpisode {
     pub title: String,
     pub slug: String,

@@ -1,79 +1,40 @@
-use highlight::PhraseHighlighter;
-
+use bytemuck::Pod;
+use query::Query;
 use rkyv::Archive;
-use stable_vec::StableVec;
+use searcher::SearchEngine;
+use sentence::SentenceWithHighlights;
+use storage::RkyvMap;
+use term_map::FrozenTermMap;
 
+pub mod builder;
 pub mod highlight;
+pub mod query;
+pub mod searcher;
 pub mod sentence;
 pub mod term_map;
-use sentence::*;
 
-use storage::{MultiMap, RkyvMap, SimpleStorage, Storage};
-
-pub struct Db<DocumentMetadata: bytemuck::Pod, SentenceMetadata: Archive> {
-    pub doc_meta: SimpleStorage<DocumentMetadata>,
-    pub sentences: RkyvMap<SentenceId, Sentence<SentenceMetadata>>,
-    pub index: MultiMap<u32, SentenceId>,
+pub struct Database<Document: Archive, DocumentMetadata: Pod, SentenceMetadata: Archive> {
+    search: SearchEngine<DocumentMetadata, SentenceMetadata>,
+    documents: RkyvMap<u32, Document>,
+    term_map: FrozenTermMap,
 }
 
-impl<D: bytemuck::Pod, S: Archive> Db<D, S> {
-    fn ids_for_phrase<'a>(
-        &'a self,
-        phrase: &'a [u32],
-        document_filter: Option<impl Fn(&'a D) -> bool>,
-    ) -> StableVec<&'a SentenceId> {
-        let mut term_sets = Vec::with_capacity(phrase.len());
-        for term in phrase {
-            let ids = self.index.get(term).unwrap_or(&[]);
-            term_sets.push(ids);
-        }
-
-        term_sets.sort_by_key(|v| v.len());
-
-        let mut sentence_ids = StableVec::from_iter(term_sets[0].iter());
-
-        if term_sets.len() > 1 {
-            if let Some(filter) = document_filter {
-                for set in &term_sets[1..] {
-                    sentence_ids.retain(|v| {
-                        set.binary_search(v).is_ok()
-                            && filter(unsafe { self.doc_meta.get_unchecked(v.doc as usize) })
-                    });
-                }
-            } else {
-                for set in &term_sets[1..] {
-                    sentence_ids.retain(|v| set.binary_search(v).is_ok());
-                }
-            };
-        } else if let Some(filter) = document_filter {
-            sentence_ids
-                .retain(|id| filter(unsafe { self.doc_meta.get_unchecked(id.doc as usize) }));
-        }
-
-        sentence_ids
+impl<D: Archive, DM: Pod, SM: Archive> Database<D, DM, SM> {
+    #[inline(always)]
+    pub fn tokenize_phrase(&self, query: &str) -> Vec<u32> {
+        self.term_map.tokenize_phrase(query)
     }
 
-    pub fn query_phrase<'a>(
+    #[inline(always)]
+    pub fn query<'a>(
         &'a self,
-        phrase: &'a [u32],
-        document_filter: Option<impl Fn(&'a D) -> bool>,
-        sentence_filter: impl Fn(&'a S::Archived) -> bool + 'a,
-    ) -> impl Iterator<Item = SentenceWithHighlights<'a, S>> + 'a {
-        let highlighter = PhraseHighlighter::new(phrase);
-        self.ids_for_phrase(phrase, document_filter)
-            .into_iter()
-            .map(|(_, sentence_id)| (*sentence_id, self.sentences.get(sentence_id).unwrap()))
-            .filter(move |(_, sentence)| sentence_filter(&sentence.metadata))
-            .filter_map(move |(sentence_id, sentence)| {
-                let Some(highlights) = highlighter.highlight(sentence) else {
-                    return None
-                };
+        query: &'a impl Query<DM, SM>,
+    ) -> impl Iterator<Item = SentenceWithHighlights<'a, SM>> + 'a {
+        self.search.query(query)
+    }
 
-                Some(SentenceWithHighlights {
-                    id: sentence_id,
-                    sentence,
-                    parts: highlights,
-                })
-            })
+    #[inline(always)]
+    pub fn get_doc(&self, doc_id: &u32) -> Option<&<D as Archive>::Archived> {
+        self.documents.get(doc_id)
     }
 }

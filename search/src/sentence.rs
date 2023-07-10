@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use bytemuck::{Pod, Zeroable};
 
 use rkyv::Archive;
@@ -26,8 +28,8 @@ impl SentenceId {
 pub struct Sentence<M> {
     pub text: String,
     pub tokens: Vec<Token>,
-    // (idx in normal terms array, u32 term)
-    pub terms_by_value: Vec<(usize, u32)>,
+    // (u32 term -> idx in tokens array)
+    pub terms_by_value: BTreeMap<u32, Vec<usize>>,
     pub terms: Vec<u32>,
     pub metadata: M,
 }
@@ -36,7 +38,7 @@ pub struct Sentence<M> {
 pub struct Token {
     pub start: usize,
     pub end: usize,
-    pub term: u32,
+    // pub term: u32,
 }
 
 pub enum SentencePart<'a> {
