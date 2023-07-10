@@ -1,38 +1,17 @@
 use std::marker::PhantomData;
 
 use bytemuck::Pod;
+use rayon::slice::ParallelSliceMut;
 use rkyv::Archive;
-use smallvec::SmallVec;
-use stable_vec::{core::BitVecCore, StableVec, StableVecFacade};
+
 use storage::Storage;
 
 use crate::{
     highlight::{Highlighter, KeywordHighlighter, PhraseHighlighter},
-    searcher::SearchEngine,
-    sentence::{ArchivedSentence, SentenceId, SentencePart},
+    id_list::{SentenceIdList, SentenceIdListIter},
+    searcher::{SearchEngine, SearchResult},
+    sentence::{ArchivedSentence, SentenceId},
 };
-
-#[repr(transparent)]
-pub struct StableVecIdIter<'a> {
-    inner: <StableVecFacade<&'a SentenceId, BitVecCore<&'a SentenceId>> as IntoIterator>::IntoIter,
-}
-
-impl<'a> StableVecIdIter<'a> {
-    pub fn new(vec: StableVec<&'a SentenceId>) -> StableVecIdIter<'a> {
-        // let v = vec.into_iter().copied();
-        StableVecIdIter {
-            inner: vec.into_iter(),
-        }
-    }
-}
-
-impl<'a> Iterator for StableVecIdIter<'a> {
-    type Item = SentenceId;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next().map(|(_, v)| *v)
-    }
-}
 
 #[inline(always)]
 pub const fn always_true<S: Archive>(_sentence: &ArchivedSentence<S>) -> bool {
@@ -74,15 +53,11 @@ pub trait Query<D: Pod, S: Archive> {
 
     fn find_sentence_ids<'a>(&self, db: &'a SearchEngine<D, S>) -> Self::Ids<'a>;
 
-    #[inline(always)]
-    fn filter_sentence(&self, _sentence: &ArchivedSentence<S>) -> bool {
-        true
+    fn filter_map<'a>(&self, result: SearchResult<'a, S>) -> Option<SearchResult<'a, S>> {
+        Some(result)
     }
 
-    fn highlight<'a>(
-        &self,
-        sentence: &'a ArchivedSentence<S>,
-    ) -> Option<SmallVec<[SentencePart<'a>; 8]>>;
+    fn find_highlights(&self, sentence: &mut SearchResult<'_, S>);
 }
 
 #[derive(Clone, Copy)]
@@ -179,12 +154,12 @@ where
 
 impl<'b, D, S, DF, SF> Query<D, S> for PhraseQuery<'b, D, S, DF, SF>
 where
-    D: Pod,
-    S: Archive,
-    DF: DocumentFilter<D>,
+    D: Pod + Send + Sync,
+    S: Archive + Send + Sync,
+    DF: DocumentFilter<D> + Sync + Send,
     SF: SentenceFilter<S>,
 {
-    type Ids<'a> = StableVecIdIter<'a> where S: 'a;
+    type Ids<'a> = SentenceIdListIter where S: 'a;
 
     fn find_sentence_ids<'a>(&self, db: &'a SearchEngine<D, S>) -> Self::Ids<'a> {
         let mut term_sets = Vec::with_capacity(self.phrase.len());
@@ -195,7 +170,7 @@ where
 
         term_sets.sort_by_key(|v| v.len());
 
-        let mut sentence_ids = StableVec::from_iter(term_sets[0].iter());
+        let mut sentence_ids = SentenceIdList::from_slice(term_sets[0]);
 
         match &self.document_filter {
             Some(filter) if term_sets.len() > 1 => {
@@ -219,20 +194,20 @@ where
             None => {}
         }
 
-        StableVecIdIter::new(sentence_ids)
+        sentence_ids.into_iter()
     }
 
-    #[inline(always)]
-    fn filter_sentence(&self, sentence: &ArchivedSentence<S>) -> bool {
-        self.sentence_filter.filter_sentence(sentence)
+    fn filter_map<'a>(&self, mut result: SearchResult<'a, S>) -> Option<SearchResult<'a, S>> {
+        result.highlighted_parts = self.highlighter.highlight(result.sentence);
+        if result.highlighted_parts.is_empty() {
+            None
+        } else {
+            Some(result)
+        }
     }
 
-    #[inline(always)]
-    fn highlight<'a>(
-        &self,
-        sentence: &'a ArchivedSentence<S>,
-    ) -> Option<SmallVec<[SentencePart<'a>; 8]>> {
-        self.highlighter.highlight(sentence)
+    fn find_highlights(&self, _sentence: &mut SearchResult<'_, S>) {
+        // already highlighted by filter_map
     }
 }
 
@@ -277,8 +252,9 @@ where
             }
         }
 
-        ids.sort_unstable();
+        ids.par_sort();
         ids.dedup();
+        // assert!(ids.len() < l1);
 
         if let Some(filter) = &self.document_filter {
             ids.retain(|id| {
@@ -290,15 +266,7 @@ where
     }
 
     #[inline(always)]
-    fn filter_sentence(&self, sentence: &ArchivedSentence<S>) -> bool {
-        self.sentence_filter.filter_sentence(sentence)
-    }
-
-    #[inline(always)]
-    fn highlight<'a>(
-        &self,
-        sentence: &'a ArchivedSentence<S>,
-    ) -> Option<SmallVec<[SentencePart<'a>; 8]>> {
-        self.highlighter.highlight(sentence)
+    fn find_highlights(&self, result: &mut SearchResult<'_, S>) {
+        result.highlighted_parts = self.highlighter.highlight(result.sentence);
     }
 }

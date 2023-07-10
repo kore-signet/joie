@@ -2,13 +2,10 @@ use crate::sentence::*;
 use memchr::memmem::Finder;
 
 use rkyv::Archive;
-use smallvec::SmallVec;
 
 pub trait Highlighter<'a> {
-    fn highlight<'b, S: Archive>(
-        &'a self,
-        sentence: &'b ArchivedSentence<S>,
-    ) -> Option<SmallVec<[SentencePart<'b>; 8]>>;
+    fn highlight<'b, S: Archive>(&'a self, sentence: &'b ArchivedSentence<S>)
+        -> Vec<SentenceRange>;
 }
 
 #[derive(Clone)]
@@ -30,9 +27,8 @@ impl<'a> Highlighter<'a> for PhraseHighlighter<'a> {
     fn highlight<'b, S: Archive>(
         &'a self,
         sentence: &'b ArchivedSentence<S>,
-    ) -> Option<SmallVec<[SentencePart<'b>; 8]>> {
-        let mut cursor: usize = 0;
-        let mut highlights: SmallVec<[SentencePart<'_>; 8]> = SmallVec::new();
+    ) -> Vec<SentenceRange> {
+        let mut highlights = Vec::with_capacity(8);
 
         let term_bytes: &[u8] = bytemuck::cast_slice(&sentence.terms);
 
@@ -40,27 +36,14 @@ impl<'a> Highlighter<'a> for PhraseHighlighter<'a> {
             let idx = idx / 4;
             let start_token = &sentence.tokens[idx];
             let end_token = &sentence.tokens[idx + self.phrase.len() - 1];
-            if cursor < start_token.start as usize {
-                highlights.push(SentencePart::Normal(
-                    &sentence.text[cursor..start_token.start as usize],
-                ));
-            }
 
-            highlights.push(SentencePart::Highlight(
-                &sentence.text[start_token.start as usize..end_token.end as usize],
-            ));
-            cursor = end_token.end as usize;
+            highlights.push(SentenceRange {
+                start: start_token.start as usize,
+                end: end_token.end as usize,
+            });
         }
 
-        if highlights.is_empty() {
-            return None;
-        }
-
-        if cursor < sentence.text.len() {
-            highlights.push(SentencePart::Normal(&sentence.text[cursor..]));
-        }
-
-        Some(highlights)
+        highlights
     }
 }
 
@@ -79,8 +62,8 @@ impl<'a> Highlighter<'a> for KeywordHighlighter<'a> {
     fn highlight<'b, S: Archive>(
         &'a self,
         sentence: &'b ArchivedSentence<S>,
-    ) -> Option<SmallVec<[SentencePart<'b>; 8]>> {
-        let mut ranges: Vec<Token> = Vec::with_capacity(64);
+    ) -> Vec<SentenceRange> {
+        let mut ranges: Vec<SentenceRange> = Vec::with_capacity(64);
 
         for keyword in self.keywords {
             let Some(tokens) = sentence.terms_by_value.get(keyword) else {
@@ -90,36 +73,62 @@ impl<'a> Highlighter<'a> for KeywordHighlighter<'a> {
             for token_idx in tokens.iter() {
                 let token = &sentence.tokens[*token_idx as usize];
 
-                ranges.push(Token {
+                ranges.push(SentenceRange {
                     start: token.start as usize,
                     end: token.end as usize,
                 });
             }
         }
 
-        if ranges.is_empty() {
-            return None;
-        }
-
         ranges.sort_unstable_by_key(|t| t.start);
 
-        let mut cursor = 0;
-        let mut parts: SmallVec<[SentencePart<'b>; 8]> = SmallVec::with_capacity(ranges.len() * 2);
-
-        for Token { start, end } in ranges {
-            if start > cursor {
-                parts.push(SentencePart::Normal(&sentence.text[cursor..start]));
-            }
-
-            parts.push(SentencePart::Highlight(&sentence.text[start..end]));
-
-            cursor = end;
-        }
-
-        if cursor < sentence.text.len() {
-            parts.push(SentencePart::Normal(&sentence.text[cursor..]));
-        }
-
-        Some(parts)
+        ranges
     }
+}
+
+#[inline(always)]
+pub fn collapse_overlapped_ranges(ranges: &[SentenceRange]) -> Vec<SentenceRange> {
+    let mut result = Vec::with_capacity(ranges.len());
+    let mut ranges_it = ranges.iter();
+
+    let mut current = match ranges_it.next() {
+        Some(range) => *range,
+        None => return result,
+    };
+
+    for range in ranges {
+        if current.end > range.start {
+            current = SentenceRange {
+                start: current.start,
+                end: std::cmp::max(current.end, range.end),
+            };
+        } else {
+            result.push(current);
+            current = *range;
+        }
+    }
+
+    result.push(current);
+    result
+}
+
+pub fn highlight_by_ranges<'a>(ranges: &[SentenceRange], text: &'a str) -> Vec<SentencePart<'a>> {
+    let mut cursor = 0;
+    let mut results = Vec::with_capacity(ranges.len() * 2);
+
+    for SentenceRange { start, end } in ranges.iter().copied() {
+        if cursor < start {
+            results.push(SentencePart::Normal(&text[cursor..start]));
+        }
+
+        results.push(SentencePart::Highlight(&text[start..end]));
+
+        cursor = end;
+    }
+
+    if cursor < text.len() {
+        results.push(SentencePart::Normal(&text[cursor..]));
+    }
+
+    results
 }

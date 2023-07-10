@@ -3,12 +3,14 @@ use std::collections::BTreeMap;
 use bytemuck::{Pod, Zeroable};
 
 use rkyv::Archive;
-use smallvec::SmallVec;
+
+use crate::{CopyableRange, Token};
+pub type SentenceRange = CopyableRange;
 
 pub struct SentenceWithHighlights<'a, M: Archive> {
     pub id: SentenceId,
     pub sentence: &'a ArchivedSentence<M>,
-    pub parts: SmallVec<[SentencePart<'a>; 8]>,
+    pub parts: Vec<SentencePart<'a>>,
 }
 
 #[derive(Pod, Clone, Copy, Zeroable, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
@@ -22,6 +24,11 @@ impl SentenceId {
     pub fn new(doc: u32, sentence: u32) -> SentenceId {
         SentenceId { doc, sentence }
     }
+
+    #[inline(always)]
+    pub fn is_valid(&self) -> bool {
+        *self != SentenceId::zeroed()
+    }
 }
 
 #[derive(Clone, Archive, rkyv::Serialize)]
@@ -32,13 +39,6 @@ pub struct Sentence<M> {
     pub terms_by_value: BTreeMap<u32, Vec<usize>>,
     pub terms: Vec<u32>,
     pub metadata: M,
-}
-
-#[derive(Clone, Archive, rkyv::Serialize)]
-pub struct Token {
-    pub start: usize,
-    pub end: usize,
-    // pub term: u32,
 }
 
 pub enum SentencePart<'a> {

@@ -5,7 +5,8 @@ use rust_stemmers::Stemmer;
 use smartstring::alias::CompactString;
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::sentence::{Sentence, Token};
+use crate::sentence::Sentence;
+use crate::Token;
 
 #[derive(Default, Clone, Debug)]
 pub struct TermMap {

@@ -57,10 +57,12 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     for sentence in db.query(&query.phrases()) {
         println!("--/ {} /--", db.get_doc(&sentence.id.doc).unwrap().title);
-        print_highlights(&sentence.parts);
+        print_highlights(&sentence.highlights());
         println!();
         println!();
     }
+
+    // assert_eq!(db.query(&query.phrases()).count(), db.query(&query.smart_phrases()).count());
 
     println!("--TWILIGHT MIRAGE ONLY--");
 
@@ -70,7 +72,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             .phrases(),
     ) {
         println!("--/ {} /--", db.get_doc(&sentence.id.doc).unwrap().title);
-        print_highlights(&sentence.parts);
+        print_highlights(&sentence.highlights());
         println!();
         println!();
     }
@@ -90,12 +92,21 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("bench time");
 
     println!(
-        "lookup: {}",
+        "lookup (all): {}",
         easybench::bench(|| { db.query(&query.phrases()).for_each(|_| {}) })
     );
 
+    // println!(
+    //     "lookup (100, cursed): {}",
+    //     easybench::bench(|| {
+    //         db.query(&query.smart_phrases())
+    //             .take(100)
+    //             .for_each(|_| {})
+    //     })
+    // );
+
     println!(
-        "lookup (twilight mirage only): {}",
+        "lookup (twilight mirage only, 100): {}",
         easybench::bench(|| {
             db.query(
                 &query
@@ -104,13 +115,14 @@ fn main() -> Result<(), Box<dyn Error>> {
                     })
                     .phrases(),
             )
+            .take(100)
             .for_each(|_| {})
         })
     );
 
     println!(
-        "lookup (keywords): {}",
-        easybench::bench(|| { db.query(&query.keywords(),).for_each(|_| {}) })
+        "lookup (keywords, 100): {}",
+        easybench::bench(|| { db.query(&query.keywords()).take(100).for_each(|_| {}) })
     );
     // println!(
     //     "lookup (hieron only): {}",
