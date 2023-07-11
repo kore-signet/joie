@@ -1,4 +1,4 @@
-FROM rust:1.69.0-buster as builder
+FROM rust:1.70.0-buster as builder
 
 WORKDIR /usr/src/joie
 
