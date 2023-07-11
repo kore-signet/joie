@@ -84,6 +84,8 @@ pub async fn update_database(
             underlying_dir: temp_dir,
         };
 
+        println!("finished updating");
+
         db.swap(Arc::new(handle));
 
         Ok(())
