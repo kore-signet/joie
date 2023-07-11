@@ -16,6 +16,12 @@ use tempfile::TempDir;
 
 // use curiosity::db::Db;
 
+use mimalloc::MiMalloc;
+
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
+
+
 fn blank_db(path: impl AsRef<Path>) -> io::Result<DatabaseHandle> {
     let builder: DatabaseBuilder<StoredEpisode, EpMetadata, ()> = DatabaseBuilder::default();
 

@@ -26,3 +26,4 @@ storage = { version = "0.1.0", path = "../storage" }
 strum = { version = "0.25.0", features = ["derive"] }
 tempfile = "3.6.0"
 zip = "0.6.6"
+mimalloc = { version = "*", default-features = false }
