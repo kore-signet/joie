@@ -1,0 +1,28 @@
+[package]
+name = "satt"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+actix-cors = "0.6.4"
+actix-files = { version = "0.6.2", features = ["tokio-uring"] }
+actix-web = "4.3.1"
+arc-swap = "1.6.0"
+arrayvec = { version = "0.7.4", features = ["serde"] }
+base64-url = "2.0.0"
+bytemuck = { version = "1.13.1", features = ["derive"] }
+itertools = "0.11.0"
+joie = { version = "0.1.0", path = "../engine" }
+nyoom-json = "0.3.0"
+postcard = { version = "1.0.4", features = ["use-std"] }
+reqwest = { version = "0.11.17", default-features = false, features = ["rustls", "rustls-tls-webpki-roots", "brotli", "deflate", "mime_guess"] }
+rkyv = "0.7.42"
+serde = { version = "1.0.169", features = ["derive"] }
+serde_json = "1.0.100"
+smartstring = { version = "1.0.1", features = ["serde"] }
+storage = { version = "0.1.0", path = "../storage" }
+strum = { version = "0.25.0", features = ["derive"] }
+tempfile = "3.6.0"
+zip = "0.6.6"
