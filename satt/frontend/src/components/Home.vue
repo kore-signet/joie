@@ -119,7 +119,7 @@ const total_highlights = computed(() => {
     <p>
       <a class="link" href="docs.html" target="_blank" rel="noopener">api docs</a>
       /
-      <a class="link" href="https://github.com/emily-signet/curiosity" target="_blank" rel="noopener">source code</a>
+      <a class="link" href="https://github.com/emily-signet/joie" target="_blank" rel="noopener">source code</a>
       /
       <a class="link" href="https://memorious.cat-girl.gay" target="_blank" rel="noopener">library of memorious
         (backup/alternative)</a>

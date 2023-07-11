@@ -3,7 +3,6 @@ FROM rust:1.69.0-buster as builder
 WORKDIR /usr/src/joie
 
 COPY Cargo.toml . 
-COPY Cargo.lock .
 
 COPY storage storage
 COPY engine engine
