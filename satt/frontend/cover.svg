@@ -29,8 +29,8 @@
      inkscape:document-units="mm"
      showgrid="false"
      inkscape:zoom="0.84096521"
-     inkscape:cx="428.67409"
-     inkscape:cy="378.73148"
+     inkscape:cx="457.80729"
+     inkscape:cy="170.63726"
      inkscape:window-width="1920"
      inkscape:window-height="1045"
      inkscape:window-x="0"
@@ -39,6 +39,12 @@
      inkscape:current-layer="layer1" />
   <defs
      id="defs2">
+    <rect
+       x="59.896436"
+       y="284.54791"
+       width="611.52626"
+       height="106.70479"
+       id="rect627" />
     <linearGradient
        inkscape:collect="always"
        id="linearGradient1031">
@@ -103,9 +109,9 @@
        style="font-style:italic;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:9.45817px;line-height:0.65;font-family:'SS Pretzel';-inkscape-font-specification:'SS Pretzel Bold Italic';font-variant-ligatures:normal;font-variant-position:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-alternates:normal;font-variant-east-asian:normal;font-feature-settings:normal;font-variation-settings:normal;text-indent:0;text-align:center;text-decoration-line:none;text-decoration-style:solid;text-decoration-color:#000000;letter-spacing:1.50471px;word-spacing:0px;text-transform:none;writing-mode:lr-tb;direction:ltr;text-orientation:mixed;dominant-baseline:auto;baseline-shift:baseline;white-space:pre;shape-inside:url(#rect236);shape-padding:0;shape-margin:0;inline-size:0;display:inline;opacity:1;vector-effect:none;fill:#280b0b;fill-opacity:1;stroke:#ffffff;stroke-width:0.984;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;-inkscape-stroke:none;stop-color:#000000;stop-opacity:1"><tspan
          x="385.45194"
          y="80.574374"
-         id="tspan478"><tspan
+         id="tspan1411"><tspan
            style="font-weight:normal;font-family:Roboto;-inkscape-font-specification:'Roboto Italic';fill:#ffffff;stroke:none"
-           id="tspan476">SEARCH AT THE</tspan></tspan></text>
+           id="tspan1409">SEARCH AT THE</tspan></tspan></text>
     <text
        xml:space="preserve"
        transform="matrix(3.4371578,0,0,3.4371578,-1397.1462,-212.38852)"
@@ -113,9 +119,9 @@
        style="font-style:italic;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:10.9966px;line-height:0.65;font-family:'SS Pretzel';-inkscape-font-specification:'SS Pretzel Bold Italic';font-variant-ligatures:normal;font-variant-position:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-alternates:normal;font-variant-east-asian:normal;font-feature-settings:normal;font-variation-settings:normal;text-indent:0;text-align:center;text-decoration-line:none;text-decoration-style:solid;text-decoration-color:#000000;letter-spacing:1.50471px;word-spacing:0px;text-transform:none;writing-mode:lr-tb;direction:ltr;text-orientation:mixed;dominant-baseline:auto;baseline-shift:baseline;white-space:pre;shape-inside:url(#rect236-3);shape-padding:0;shape-margin:0;inline-size:0;display:inline;mix-blend-mode:normal;vector-effect:none;fill:#280b0b;fill-opacity:1;stroke:#ffffff;stroke-width:0.984;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;-inkscape-stroke:none;filter:url(#filter994);stop-color:#000000"><tspan
          x="409.3112"
          y="81.527463"
-         id="tspan482"><tspan
+         id="tspan1415"><tspan
            style="font-family:Roboto;-inkscape-font-specification:'Roboto Bold Italic';fill:#ffffff;stroke:none"
-           id="tspan480">TABLE</tspan></tspan></text>
+           id="tspan1413">TABLE </tspan></tspan></text>
     <text
        xml:space="preserve"
        style="font-style:italic;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:22px;line-height:0.65;font-family:'SS Pretzel';-inkscape-font-specification:'SS Pretzel Bold Italic';font-variant-ligatures:normal;font-variant-position:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-alternates:normal;font-variant-east-asian:normal;font-feature-settings:normal;font-variation-settings:normal;text-indent:0;text-align:center;text-decoration-line:none;text-decoration-style:solid;text-decoration-color:#000000;letter-spacing:-0.638674px;word-spacing:-0.17px;text-transform:none;writing-mode:lr-tb;direction:ltr;text-orientation:mixed;dominant-baseline:auto;baseline-shift:baseline;white-space:pre;shape-inside:url(#rect8057-5);shape-padding:0;shape-margin:0;inline-size:0;display:inline;opacity:1;vector-effect:none;fill:#280b0b;fill-opacity:1;stroke:#ffffff;stroke-width:0.984;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;-inkscape-stroke:none;stop-color:#000000;stop-opacity:1"
@@ -125,16 +131,26 @@
        transform="matrix(0.26458333,0,0,0.26458333,-61.114254,-12.332812)"><tspan
          x="0"
          y="0"
-         id="tspan484"> </tspan></text>
+         id="tspan1417"> </tspan></text>
     <text
        xml:space="preserve"
        transform="matrix(0.5025021,0,0,0.5025021,-158.23689,-108.56473)"
        id="text998"
        style="font-style:italic;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:22px;line-height:0.65;font-family:'SS Pretzel';-inkscape-font-specification:'SS Pretzel Bold Italic';font-variant-ligatures:normal;font-variant-position:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-alternates:normal;font-variant-east-asian:normal;font-feature-settings:normal;font-variation-settings:normal;text-indent:0;text-align:center;text-decoration-line:none;text-decoration-style:solid;text-decoration-color:#000000;letter-spacing:1.39px;word-spacing:-0.17px;text-transform:none;writing-mode:lr-tb;direction:ltr;text-orientation:mixed;dominant-baseline:auto;baseline-shift:baseline;white-space:pre;shape-inside:url(#rect1000);shape-padding:0;shape-margin:0;display:inline;opacity:1;vector-effect:none;fill:#ffffff;fill-opacity:1;stroke:#ffffff;stroke-width:0.984;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;-inkscape-stroke:none;stop-color:#000000;stop-opacity:1"><tspan
-         x="768.25957"
+         x="780.99332"
          y="536.24273"
-         id="tspan488"><tspan
+         id="tspan1421"><tspan
            style="font-style:normal;font-weight:normal;font-family:Roboto;-inkscape-font-specification:'Roboto, Normal';font-variant-ligatures:no-common-ligatures;stroke:none"
-           id="tspan486">search.fatt.fish</tspan></tspan></text>
+           id="tspan1419">beta.fatt.fish</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       transform="matrix(0.86859818,0,0,0.86859818,89.382651,-191.90934)"
+       id="text625"
+       style="font-size:26.6667px;font-family:'Fira Sans Condensed';-inkscape-font-specification:'Fira Sans Condensed, ';white-space:pre;shape-inside:url(#rect627);fill:#f2b725;fill-opacity:1;stroke:none;stroke-width:0"><tspan
+         x="59.896484"
+         y="309.06941"
+         id="tspan1425"><tspan
+           style="font-style:italic;font-family:Roboto;-inkscape-font-specification:'Roboto Italic'"
+           id="tspan1423">beta</tspan></tspan></text>
   </g>
 </svg>
