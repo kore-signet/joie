@@ -1,19 +1,16 @@
 use logos::Logos;
-use query::{DocumentFilter, DynQuery, Query, QueryBuilder, YokedPhraseQuery};
-use rkyv::{ser::serializers::AllocSerializer, Archive};
+use query::{parser::QueryToken, DocumentFilter, DynQuery, Query, QueryBuilder, YokedPhraseQuery};
+use rkyv::Archive;
 use searcher::{SearchEngine, SearchResult};
 
-use storage::RkyvMap;
+use storage::{RkyvMap, SerializableToFile};
 use term_map::FrozenTermMap;
 use yoke::Yoke;
-
-use crate::query_parser::QueryToken;
 
 pub mod builder;
 pub mod highlight;
 mod id_list;
 pub mod query;
-pub mod query_parser;
 pub mod searcher;
 pub mod sentence;
 pub mod term_map;
@@ -22,11 +19,11 @@ pub trait DocumentMetadata: bytemuck::Pod + Default + Send + Sync {}
 impl<T> DocumentMetadata for T where T: bytemuck::Pod + Default + Send + Sync {}
 
 pub trait SentenceMetadata:
-    rkyv::Archive + rkyv::Serialize<AllocSerializer<1024>> + Default + Send + Sync + Clone
+    rkyv::Archive + SerializableToFile + Default + Send + Sync + Clone
 {
 }
 impl<T> SentenceMetadata for T where
-    T: rkyv::Archive + rkyv::Serialize<AllocSerializer<1024>> + Default + Send + Sync + Clone
+    T: rkyv::Archive + SerializableToFile + Default + Send + Sync + Clone
 {
 }
 
@@ -78,14 +75,15 @@ where
         &self,
         query: &str,
         document_filter: F,
+        optimize: bool,
     ) -> Option<DynQuery<DM, SM>> {
         let tokens: Vec<QueryToken<'_>> = QueryToken::lexer(query)
             .collect::<Result<Vec<QueryToken<'_>>, _>>()
             .ok()?;
-        let expr = query_parser::query_grammar::expression(&tokens).ok()?;
+        let expr = query::parser::query_grammar::expression(&tokens).ok()?;
 
         Some(DynQuery {
-            inner: expr.parse(&self.term_map, document_filter),
+            inner: expr.parse(&self.term_map, document_filter, optimize),
         })
     }
 

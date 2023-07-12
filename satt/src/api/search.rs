@@ -1,6 +1,7 @@
 use actix_web::{http::StatusCode, web, HttpResponse, HttpResponseBuilder};
 
 use itertools::Itertools;
+use joie::query::Query;
 use joie::sentence::SentenceRange;
 use nyoom_json::UnescapedStr;
 
@@ -34,7 +35,7 @@ pub async fn search(
             match request.kind {
                 QueryKind::Phrase => db.phrase_query(&request.query, ()),
                 QueryKind::Advanced => db
-                    .parse_query(&request.query, ())
+                    .parse_query(&request.query, (), true)
                     .ok_or(ServerError::InvalidQuery)?,
             }
         } else {
@@ -49,7 +50,7 @@ pub async fn search(
             match request.kind {
                 QueryKind::Phrase => db.phrase_query(&request.query, filter),
                 QueryKind::Advanced => db
-                    .parse_query(&request.query, filter)
+                    .parse_query(&request.query, filter, true)
                     .ok_or(ServerError::InvalidQuery)?,
             }
             // db.parse_query(&request.query, )

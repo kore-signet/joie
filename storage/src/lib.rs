@@ -1,16 +1,33 @@
 use std::collections::HashMap;
 use std::hash::Hash;
-use std::io;
+use std::io::{self, BufWriter};
 use std::{fmt::Debug, fs::File};
 
 pub mod store;
+
 pub use store::*;
 
 use ph::fmph::{GOBuildConf, GOConf, GOFunction};
-use rkyv::ser::serializers::AllocSerializer;
+use rkyv::ser::serializers::{
+    AllocScratch, CompositeSerializer, SharedSerializeMap, WriteSerializer,
+};
 
 pub type MultiMap<K, V> = ImmutableMap<K, MultiStorage<V>>;
 pub type RkyvMap<K, V> = ImmutableMap<K, RkyvStorage<V>>;
+
+// i think this is the worst trait bound to ever be
+pub trait SerializableToFile:
+    rkyv::Serialize<
+        CompositeSerializer<WriteSerializer<BufWriter<File>>, AllocScratch, SharedSerializeMap>,
+    > + Clone
+{
+}
+impl<T> SerializableToFile for T where
+    T: rkyv::Serialize<
+            CompositeSerializer<WriteSerializer<BufWriter<File>>, AllocScratch, SharedSerializeMap>,
+        > + Clone
+{
+}
 
 pub struct ImmutableMap<K: Hash, S: Storage> {
     hasher: GOFunction,
@@ -36,37 +53,38 @@ impl<K: Hash + Sync + Send + Clone + PartialEq + Debug, V: bytemuck::Pod>
     ) -> io::Result<ImmutableMap<K, MultiStorage<V>>> {
         assert!(keys.len() == vals.len());
 
-        let hasher = GOFunction::from_slice_with_conf(
-            &keys,
-            GOBuildConf::with_lsize(GOConf::default(), 300),
-        );
-        let mut reordered_vals = Vec::with_capacity(vals.len());
+        let mut conf = GOBuildConf::with_lsize(GOConf::default(), 300);
+        conf.cache_threshold = 0;
+
+        let hasher = GOFunction::from_slice_with_conf(&keys, conf);
+
+        let mut storage_builder = MultiStorageBuilder::new(vals.len(), file);
+        // let mut reordered_vals = Vec::with_capacity(vals.len());
         let mut reordered_keys: Vec<K> = Vec::with_capacity(keys.len());
 
         for (k, v) in keys.into_iter().zip(vals.iter()) {
             let new_idx = hasher.get(&k).unwrap() as usize;
-            reordered_vals.spare_capacity_mut()[new_idx].write(v.as_ref().to_vec());
+            storage_builder.serialize(new_idx, v.as_ref())?;
+            // reordered_vals.spare_capacity_mut()[new_idx].write(v.as_ref().to_vec());
             reordered_keys.spare_capacity_mut()[new_idx].write(k);
         }
 
         unsafe {
             reordered_keys.set_len(vals.len());
-            reordered_vals.set_len(vals.len());
+            // reordered_vals.set_len(vals.len());
         }
 
-        let storage = MultiStorage::build(&reordered_vals, file)?;
+        // let storage = MultiStorage::build(&reordered_vals, file)?;
         Ok(ImmutableMap {
             hasher,
             keys: reordered_keys,
-            store: storage,
+            store: storage_builder.finish()?,
         })
     }
 }
 
-impl<
-        K: Hash + Sync + Send + Clone + PartialEq + Debug,
-        V: rkyv::Serialize<AllocSerializer<1024>> + Clone,
-    > ImmutableMap<K, RkyvStorage<V>>
+impl<K: Hash + Sync + Send + Clone + PartialEq + Debug, V: SerializableToFile>
+    ImmutableMap<K, RkyvStorage<V>>
 {
     pub fn rkyv_from_map(
         map: HashMap<K, V>,
@@ -83,25 +101,26 @@ impl<
     ) -> io::Result<ImmutableMap<K, RkyvStorage<V>>> {
         assert!(keys.len() == vals.len());
 
-        let hasher = GOFunction::from_slice_with_conf(
-            &keys,
-            GOBuildConf::with_lsize(GOConf::default(), 300),
-        );
-        let mut reordered_vals = Vec::with_capacity(vals.len());
+        let mut conf = GOBuildConf::with_lsize(GOConf::default(), 300);
+        conf.cache_threshold = 0;
+
+        let hasher = GOFunction::from_slice_with_conf(&keys, conf);
+
         let mut reordered_keys: Vec<K> = Vec::with_capacity(keys.len());
+
+        let mut archiver = RkyvStorageBuilder::create(keys.len(), file)?;
 
         for (k, v) in keys.into_iter().zip(vals.iter().cloned()) {
             let new_idx = hasher.get(&k).unwrap() as usize;
-            reordered_vals.spare_capacity_mut()[new_idx].write(v);
+            archiver.serialize(new_idx, &v)?;
             reordered_keys.spare_capacity_mut()[new_idx].write(k);
         }
 
         unsafe {
             reordered_keys.set_len(vals.len());
-            reordered_vals.set_len(vals.len());
         }
 
-        let storage = RkyvStorage::build(reordered_vals, file)?;
+        let storage = archiver.finish()?;
         Ok(ImmutableMap {
             hasher,
             keys: reordered_keys,

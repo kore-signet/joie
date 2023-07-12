@@ -3,7 +3,7 @@ members = ["satt", "engine", "storage"]
 resolver = "2"
 
 [profile.release]
-debug = true
+debug = 2
 
 [profile.production]
 inherits = "release"

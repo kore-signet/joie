@@ -5,8 +5,7 @@ use std::{
     path::Path,
 };
 
-use rkyv::ser::serializers::AllocSerializer;
-use storage::{MultiMap, RkyvMap, SimpleStorage};
+use storage::{MultiMap, RkyvMap, SerializableToFile, SimpleStorage};
 
 use crate::{
     searcher::SearchEngine,
@@ -26,7 +25,7 @@ fn open_mapfile(path: impl AsRef<Path>) -> io::Result<File> {
 #[derive(Default)]
 pub struct DatabaseBuilder<D, DM, SM>
 where
-    D: rkyv::Archive + rkyv::Serialize<AllocSerializer<1024>> + Clone,
+    D: rkyv::Archive + SerializableToFile,
     DM: DocumentMetadata,
     SM: SentenceMetadata,
 {
@@ -39,11 +38,7 @@ where
 }
 
 #[derive(Debug, Default)]
-pub struct DocumentData<
-    'a,
-    D: rkyv::Archive + rkyv::Serialize<AllocSerializer<1024>> + Clone,
-    DM: DocumentMetadata,
-> {
+pub struct DocumentData<'a, D: rkyv::Archive + SerializableToFile, DM: DocumentMetadata> {
     pub id: u32,
     pub text: &'a str,
     pub metadata: DM,
@@ -52,7 +47,7 @@ pub struct DocumentData<
 
 impl<D, DM, SM> DatabaseBuilder<D, DM, SM>
 where
-    D: rkyv::Archive + rkyv::Serialize<AllocSerializer<1024>> + Clone,
+    D: rkyv::Archive + SerializableToFile,
     DM: DocumentMetadata,
     SM: SentenceMetadata,
 {

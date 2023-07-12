@@ -14,7 +14,7 @@ impl SentenceIdList {
 
     pub fn retain(&mut self, keep: impl Fn(&SentenceId) -> bool + Sync + Send) {
         self.ids.par_iter_mut().for_each(|slot| {
-            if !keep(slot) {
+            if slot.is_valid() && !keep(slot) {
                 *slot = SentenceId::zeroed();
             }
         })
