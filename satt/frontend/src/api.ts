@@ -1,6 +1,9 @@
 import { reactive } from "vue";
 import { QueryKind, type ApiRequest, type ApiResponse } from "./types";
 
+const api_url: string = process.env.NODE_ENV == "development" ? "http://localhost:8080/api/search?" : "/api/search?";
+
+
 export async function search(
     request: Partial<ApiRequest>
 ): Promise<ApiResponse> {
@@ -16,7 +19,7 @@ export async function search(
     }
 
     let res = await fetch(
-        "/api/search?" + new URLSearchParams(req),
+        api_url + new URLSearchParams(req),
         { mode: "cors" }
     );
     return (await res.json()) as ApiResponse;

@@ -22,6 +22,7 @@ export interface ApiRequest  {
 }
 
 export type ApiResponse = {
+    query_time: number,
     next_page: string | null,
     episodes: EpisodeData[]
 }

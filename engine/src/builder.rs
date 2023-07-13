@@ -56,18 +56,18 @@ where
     }
 
     pub fn add_document(&mut self, doc: DocumentData<D, DM>) {
-        for (sentence_idx, sentence) in self
-            .term_map
-            .tokenize_all(doc.text, |v| {
-                if let Some(make_metadata) = self.make_sentence_metadata.as_ref() {
-                    make_metadata(v)
-                } else {
-                    SM::default()
-                }
-            })
-            .into_iter()
-            .enumerate()
-        {
+        let sentences = self.term_map.tokenize_all(doc.text, |v| {
+            if let Some(make_metadata) = self.make_sentence_metadata.as_ref() {
+                make_metadata(v)
+            } else {
+                SM::default()
+            }
+        });
+
+        self.sentence_map.reserve(sentences.len());
+        self.term_to_sentence.reserve(sentences.len() * 16);
+
+        for (sentence_idx, sentence) in sentences.into_iter().enumerate() {
             let id = SentenceId::new(doc.id, sentence_idx as u32);
             assert!(bytemuck::cast::<SentenceId, u64>(id) != 0);
 

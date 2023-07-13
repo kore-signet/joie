@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use perfect_map::PerfectMap;
 use rust_stemmers::Stemmer;
+use smallvec::SmallVec;
 use smartstring::alias::CompactString;
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -29,24 +30,27 @@ impl TermMap {
         s: &str,
         make_metadata: impl Fn(&str) -> M,
     ) -> Sentence<M> {
-        let (tokens, terms): (Vec<Token>, Vec<u32>) = s
-            .unicode_word_indices()
-            .map(|(start, word)| {
-                let lower = word.to_lowercase();
-                let term = self.intern(&lower);
+        let words: Vec<_> = s.unicode_word_indices().collect();
 
-                (
-                    Token {
-                        start,
-                        end: start + word.len(),
-                        // term,
-                    },
-                    term,
-                )
-            })
-            .unzip();
+        let (mut tokens, mut terms) = (
+            Vec::with_capacity(words.len()),
+            Vec::with_capacity(words.len()),
+        );
 
-        let mut terms_by_value: BTreeMap<u32, Vec<usize>> = BTreeMap::new();
+        for (start, word) in words {
+            let lower = word.to_lowercase();
+            let term = self.intern(&lower);
+
+            tokens.push(Token {
+                start,
+                end: start + word.len(),
+                // term,
+            });
+
+            terms.push(term);
+        }
+
+        let mut terms_by_value: BTreeMap<u32, SmallVec<[usize; 4]>> = BTreeMap::new();
         for (idx, term) in terms.iter().enumerate() {
             terms_by_value.entry(*term).or_default().push(idx);
         }

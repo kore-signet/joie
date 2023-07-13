@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use bytemuck::{Pod, Zeroable};
 
 use rkyv::Archive;
+use smallvec::SmallVec;
 
 use crate::{CopyableRange, Token};
 pub type SentenceRange = CopyableRange;
@@ -36,7 +37,7 @@ pub struct Sentence<M> {
     pub text: String,
     pub tokens: Vec<Token>,
     // (u32 term -> idx in tokens array)
-    pub terms_by_value: BTreeMap<u32, Vec<usize>>,
+    pub terms_by_value: BTreeMap<u32, SmallVec<[usize; 4]>>,
     pub terms: Vec<u32>,
     pub metadata: M,
 }

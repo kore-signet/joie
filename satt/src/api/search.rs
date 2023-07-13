@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use actix_web::{http::StatusCode, web, HttpResponse, HttpResponseBuilder};
 
 use itertools::Itertools;
@@ -64,6 +66,8 @@ pub async fn search(
 
     let mut results_count = 0;
     let page_size = std::cmp::min(100, request.page_size);
+
+    let querying_start_moment = Instant::now();
 
     let results_iter = db.query(&query).group_by(|r| r.id.doc);
     for (doc_id, results) in results_iter
@@ -134,6 +138,8 @@ pub async fn search(
         episode.end();
     }
 
+    let query_time = querying_start_moment.elapsed();
+
     let next_page = if results_count >= page_size {
         request._curiosity_internal_offset += results_count;
         Some(base64_url::encode(&postcard::to_stdvec(&request).unwrap()))
@@ -144,6 +150,10 @@ pub async fn search(
     episodes.end();
 
     response_obj.field(UnescapedStr::create("next_page"), next_page.as_deref());
+    response_obj.field(
+        UnescapedStr::create("query_time"),
+        query_time.as_millis() as u64,
+    );
 
     response_obj.end();
 

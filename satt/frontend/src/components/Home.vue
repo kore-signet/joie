@@ -6,8 +6,10 @@ import Form from './Form.vue'
 import { QueryKind, type ApiRequest, type ApiResponse, type EpisodeData } from '../types'
 import { useRouter, useRoute } from 'vue-router'
 import { onMounted } from 'vue'
+import humanizeDuration from 'humanize-duration'
 
 const episodes: Ref<EpisodeData[]> = ref([])
+const query_took: Ref<number> = ref(0)
 let page: string | null = null
 
 const router = useRouter()
@@ -61,6 +63,7 @@ async function search() {
 
   let res = await api.search(request)
   episodes.value = res.episodes
+  query_took.value = res.query_time
   page = res.next_page
 }
 
@@ -68,6 +71,7 @@ async function load_more() {
   let res = await api.search({ page: page })
   page = res.next_page
   episodes.value = episodes.value.concat(res.episodes)
+  query_took.value = res.query_time
 }
 
 const total_highlights = computed(() => {
@@ -98,7 +102,7 @@ const total_highlights = computed(() => {
     
     <Form v-model:query="request.query" v-model:kind="request.kind" v-model:seasons="request.seasons" @search="search" />
     <div class="output" aria-live="polite">
-      <p style="margin: 2rem 0; font-size: 1.2rem;" v-show="episodes.length > 0"><b>{{ episodes.length }} episodes found so far</b><br/><span id="total-highlights">({{ total_highlights }} results total)</span></p>
+      <p style="margin: 2rem 0; font-size: 1.2rem;" v-show="episodes.length > 0"><b>{{ episodes.length }} episodes found so far</b><br/><span id="total-highlights">({{ total_highlights }} results total | took {{  humanizeDuration(query_took, { units: ["m","s","ms"]}) }})</span></p>
       <Episode v-for="episode in episodes" v-bind="episode" />
       <button id="load-more" @click="load_more" v-show="page">Load more</button>
     </div>
