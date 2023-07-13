@@ -3,14 +3,21 @@ import * as api from '../api'
 import { computed, reactive, ref, watch, type Ref } from 'vue'
 import Episode from './Episode.vue'
 import Form from './Form.vue'
-import { QueryKind, type ApiRequest, type ApiResponse, type EpisodeData } from '../types'
+import { QueryKind, type ApiRequest, type ApiResponse, type EpisodeData, type ApiResult } from '../types'
 import { useRouter, useRoute } from 'vue-router'
 import { onMounted } from 'vue'
-import humanizeDuration from 'humanize-duration'
+import { array_unordered_equals, duration_humanizer } from '@/utils'
 
-const episodes: Ref<EpisodeData[]> = ref([])
-const query_took: Ref<number> = ref(0)
-let page: string | null = null
+
+type ResultData = { episodes: EpisodeData[], query_took: number, page: string | null }
+
+const results = reactive<ResultData>({
+  episodes: [],
+  query_took: 0,
+  page: null
+})
+
+const result_err = ref<string | null>(null);
 
 const router = useRouter()
 const route = useRoute()
@@ -23,7 +30,6 @@ const request = reactive<ApiRequest>({
 })
 
 watch(route, (route) => {
-  console.log(route.query['seasons']);
   request.query = route.query['q'] as string || request.query || ''
   request.kind = route.query['kind'] as QueryKind || request.kind || QueryKind.PHRASE
   request.seasons = (route.query['seasons'] ? (route.query['seasons'] as string).split(',') : []) || request.seasons || []
@@ -35,44 +41,10 @@ onMounted(async () => {
   }
 })
 
-const duration_humanizer = humanizeDuration.humanizer({
-  language: "fatt",
-  units: ["m", "s", "ms"],
-  languages: {
-    fatt: {
-      y: (c) => "year" + (c === 1 ? "" : "s"),
-      mo: (c) => "month" + (c === 1 ? "" : "s"),
-      w: (c) => "week" + (c === 1 ? "" : "s"),
-      d: (c) => "day" + (c === 1 ? "" : "s"),
-      h: (c) => "hour" + (c === 1 ? "" : "s"),
-      m: (c) => "minute" + (c === 1 ? "" : "s"),
-      s: (c) => "second" + (c === 1 ? "" : "s"),
-      ms: (c) => {
-        if (Math.random() > 0.6) {
-          return "millisecond" + (c === 1 ? "" : "s");
-        } else {
-          return "ver'millisecond" + (c === 1 ? "" : "s");
-        }
-      }
-    }
+function track_search() {
+  if (process.env.NODE_ENV == "development") {
+    return;
   }
-})
-
-async function search() {
-  let new_query: Record<string, any> = {
-    'q': request.query,
-    'kind': request.kind,
-  };
-
-  if (request.seasons && request.seasons.length > 0) {
-    if (!api.array_unordered_equals(request.seasons, api.all_seasons)) {
-      new_query['seasons'] = request.seasons.join(',');
-    }
-  }
-
-  router.push({
-    path: '/', query: new_query
-  });
 
   try {
     (<any>window).umami.track('search', {
@@ -83,22 +55,56 @@ async function search() {
   } catch (err) {
     console.log(err)
   }
+}
+
+async function search() {
+  let new_query: Record<string, any> = {
+    'q': request.query,
+    'kind': request.kind,
+  };
+
+  if (request.seasons && request.seasons.length > 0) {
+    if (!array_unordered_equals(request.seasons, api.all_seasons)) {
+      new_query['seasons'] = request.seasons.join(',');
+    }
+  }
+
+  router.push({
+    path: '/', query: new_query
+  });
+
 
   let res = await api.search(request)
-  episodes.value = res.episodes
-  query_took.value = res.query_time
-  page = res.next_page
+
+  if (res.ok) {
+    result_err.value = null;
+
+    results.episodes = res.value.episodes
+    results.query_took = res.value.query_time
+    results.page = res.value.next_page
+  } else {
+    result_err.value = res.msg;
+  }
+
 }
 
 async function load_more() {
-  let res = await api.search({ page: page })
-  page = res.next_page
-  episodes.value = episodes.value.concat(res.episodes)
-  query_took.value = res.query_time
+  let res: ApiResult = await api.search({ page: results.page })
+
+  if (res.ok) {
+    result_err.value = null;
+
+    results.page = res.value.next_page
+    results.episodes = results.episodes.concat(res.value.episodes)
+    results.query_took = res.value.query_time
+  } else {
+    result_err.value = res.msg;
+  }
+
 }
 
 const total_highlights = computed(() => {
-  return episodes.value.reduce((acc, ep) => acc + ep.highlights.length, 0)
+  return results.episodes.reduce((acc, ep) => acc + ep.highlights.length, 0)
 })
 
 </script>
@@ -124,16 +130,30 @@ const total_highlights = computed(() => {
     </p>
 
     <Form v-model:query="request.query" v-model:kind="request.kind" v-model:seasons="request.seasons" @search="search" />
+
     <div class="output" aria-live="polite">
-      <p style="margin: 2rem 0; font-size: 1.2rem;" v-show="episodes.length > 0"><b>{{ episodes.length }} episodes found
-          so far</b><br /><span id="total-highlights">({{ total_highlights }} results total | took {{
-            duration_humanizer(query_took) }})</span></p>
-      <Episode v-for="episode in episodes" v-bind="episode" />
-      <button id="load-more" @click="load_more" v-show="page">Load more</button>
+
+      <p class="result-header" v-if="result_err === null && results.episodes.length > 0">
+        <b>{{ results.episodes.length }} episodes found so far</b> <br />
+        <span id="total-highlights">({{ total_highlights }} results total | took {{ duration_humanizer(results.query_took) }})</span>
+      </p>
+
+      <p class="result-header" style="color: #ff4747;" v-else-if="result_err !== null">
+        <i>error: {{ result_err }}</i>
+      </p>
+
+      <p class="result-header" v-else>
+        <b>no results >: </b>
+      </p>
+
+
+      <Episode v-for="episode in results.episodes" v-bind="episode" />
+      <button id="load-more" @click="load_more" v-show="results.page">Load more</button>
+
     </div>
   </main>
 
-  <footer>
+  <footer>>
     <p>
     <p>powered by
       <a href="https://transcriptsatthetable.com" class="link" target="_blank"
@@ -221,8 +241,14 @@ footer {
   font-size: 1rem;
 }
 
+.result-header {
+  margin: 2rem 0;
+  font-size: 1.2rem;
+}
+
 @media screen and (max-width: 920px) {
   main {
     width: 90%;
   }
-}</style>
+}
+</style>

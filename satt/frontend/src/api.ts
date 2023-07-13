@@ -1,12 +1,12 @@
 import { reactive } from "vue";
-import { QueryKind, type ApiRequest, type ApiResponse } from "./types";
+import { QueryKind, type ApiRequest, type ApiResponse, type ApiResult } from "./types";
 
 const api_url: string = process.env.NODE_ENV == "development" ? "http://localhost:8080/api/search?" : "/api/search?";
 
 
 export async function search(
     request: Partial<ApiRequest>
-): Promise<ApiResponse> {
+): Promise<ApiResult> {
     let req: Record<string, string> = {
         query: request.query || "",
         kind: request.kind || QueryKind.PHRASE,
@@ -22,25 +22,15 @@ export async function search(
         api_url + new URLSearchParams(req),
         { mode: "cors" }
     );
-    return (await res.json()) as ApiResponse;
-}
 
-// why do i have to write this in the year of our lord 2023
-export function array_unordered_equals(lhs: any[], rhs: any[]): boolean {
-    lhs.sort();
-    rhs.sort();
+    let res_json = await res.json();
 
-    if (lhs.length !== rhs.length) {
-        return false;
+    if (!res.ok) {
+        return { ok: false, msg: res_json["msg"] || res.statusText }
+    } else {
+        return { ok: true, value: res_json as ApiResponse };
+
     }
-
-    for (let i = 0; i < lhs.length; i++) {
-        if (lhs[i] !== rhs[i]) {
-            return false;
-        }
-    }
-
-    return true;
 }
 
 export const all_seasons = [

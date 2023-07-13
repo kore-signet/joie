@@ -42,6 +42,10 @@ where
             .map(|term| db.index.get(term).unwrap_or(&[]))
             .collect();
 
+        if term_sets.len() == 0 {
+            return SentenceIdList { ids: Vec::new() };
+        }
+
         term_sets.sort_by_key(|v| v.len());
 
         let mut sentence_ids = SentenceIdList::from_slice(term_sets[0]);

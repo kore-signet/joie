@@ -26,3 +26,13 @@ export type ApiResponse = {
     next_page: string | null,
     episodes: EpisodeData[]
 }
+
+export type ApiError = {
+    err: true,
+    msg: string
+}
+
+export type ApiResult = 
+    | { ok: true; value: ApiResponse }
+    | { ok: false; msg: string }
+    

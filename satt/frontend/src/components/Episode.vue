@@ -11,19 +11,19 @@ const docs_link = computed(() => {
 </script>
 
 <template>
-  <p class="episode">
-    <a :href="docs_link" target="_blank" rel="noopener">{{ title }}</a>
+  <details class="episode" open>
+    <summary><a :href="docs_link" target="_blank" rel="noopener">{{ title }}</a></summary>
     <p class="result" v-for="sentence in highlights">
       <template v-for="part in sentence">
         <span :class="{ highlighted: part.highlighted }">{{ part.text }}</span>
       </template>
     </p>
-  </p>
+  </details>
 </template>
 
 <style scoped>
 
-p.episode {
+details.episode {
   font-size: 1.22rem;
 }
 
@@ -43,11 +43,15 @@ a:hover {
   transition: 0.1s;
 }
 
-p.episode p {
+.episode p {
   border-bottom: 1px solid #684cb0;
   margin-bottom: 40px;
   padding-bottom: 5px;
   text-align: left;
+}
+
+.episode:not([open]) {
+  margin-bottom: 1em;
 }
 
 .highlighted {
