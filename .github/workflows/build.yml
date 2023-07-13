@@ -30,5 +30,5 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/emily-signet/joie
-            ghcr.io/emily-signet/joie:${{ github.sha }}
+            ghcr.io/kore-signet/joie
+            ghcr.io/kore-signet/joie:${{ github.sha }}

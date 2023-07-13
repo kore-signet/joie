@@ -11,7 +11,7 @@ bytemuck = { version = "1.13.1", features = ["derive"] }
 logos = "0.13.0"
 memchr = "2.5.0"
 peg = "0.8.1"
-perfect-map = { git = "https://github.com/emily-signet/perfect-map", version = "0.1.0" }
+perfect-map = { git = "https://github.com/kore-signet/perfect-map", version = "0.1.0" }
 rayon = "1.7.0"
 rkyv = { version = "0.7.42", features = ["smallvec"] }
 rust-stemmers = "1.2.0"

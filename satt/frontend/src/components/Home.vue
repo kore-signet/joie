@@ -163,13 +163,13 @@ const total_highlights = computed(() => {
     <a href="https://twitter.com/bryanbakedbean" class="link" target="_blank" rel="noopener">@bryanbakedbean</a>
     /
     currently upkept by
-    <a class="link" href="https://cat-girl.gay" target="_blank" rel="noopener">emily signet</a>
+    <a class="link" href="https://cat-girl.gay" target="_blank" rel="noopener">kore signet</a>
     <br />
     </p>
     <p>
       <a class="link" href="docs.html" target="_blank" rel="noopener">api docs</a>
       /
-      <a class="link" href="https://github.com/emily-signet/joie" target="_blank" rel="noopener">source code</a>
+      <a class="link" href="https://github.com/kore-signet/joie" target="_blank" rel="noopener">source code</a>
       /
       <a class="link" href="https://memorious.cat-girl.gay" target="_blank" rel="noopener">library of memorious
         (backup/alternative)</a>

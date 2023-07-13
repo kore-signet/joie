@@ -30,7 +30,7 @@ pub async fn update_database(
     db: SharedDatabaseHandle,
     db_dir: PathBuf,
 ) -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
-    let mirror_bytes = reqwest::get("https://github.com/emily-signet/transcripts-at-the-table-mirror/archive/refs/heads/data.zip").await?.bytes().await?;
+    let mirror_bytes = reqwest::get("https://github.com/kore-signet/transcripts-at-the-table-mirror/archive/refs/heads/data.zip").await?.bytes().await?;
 
     actix_web::rt::task::spawn_blocking(move || {
         let mut mirror = zip::ZipArchive::new(Cursor::new(mirror_bytes.as_ref()))?;
