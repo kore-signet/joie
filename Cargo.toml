@@ -1,5 +1,5 @@
 [workspace]
-members = ["satt", "engine", "storage"]
+members = ["engine", "storage"]
 resolver = "2"
 
 [profile.release]
