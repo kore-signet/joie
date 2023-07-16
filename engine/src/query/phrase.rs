@@ -14,7 +14,7 @@ use crate::{
     DocumentMetadata, SentenceMetadata,
 };
 
-use super::{DocumentFilter, Query};
+use super::{CallerType, DocumentFilter, Query};
 
 #[derive(Clone)]
 pub struct PhraseQuery<'a, D, S, DF>
@@ -35,14 +35,14 @@ where
     S: SentenceMetadata,
     DF: DocumentFilter<D> + Sync + Send,
 {
-    fn find_sentence_ids(&self, db: &SearchEngine<D, S>) -> SentenceIdList {
+    fn find_sentence_ids(&self, db: &SearchEngine<D, S>, _caller: CallerType) -> SentenceIdList {
         let mut term_sets: Vec<&[SentenceId]> = self
             .phrase
             .par_iter()
             .map(|term| db.index.get(term).unwrap_or(&[]))
             .collect();
 
-        if term_sets.len() == 0 {
+        if term_sets.is_empty() {
             return SentenceIdList { ids: Vec::new() };
         }
 
@@ -101,8 +101,9 @@ impl<D: DocumentMetadata, S: SentenceMetadata, DF: DocumentFilter<D>> Query<D, S
     fn find_sentence_ids(
         &self,
         db: &crate::searcher::SearchEngine<D, S>,
+        caller: CallerType,
     ) -> crate::id_list::SentenceIdList {
-        self.inner.get().find_sentence_ids(db)
+        self.inner.get().find_sentence_ids(db, caller)
     }
 
     fn find_highlights(&self, sentence: &mut crate::searcher::SearchResult<'_, S>) {

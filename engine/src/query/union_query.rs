@@ -14,7 +14,7 @@ use crate::{
     DocumentMetadata, SentenceMetadata,
 };
 
-use super::Query;
+use super::{CallerType, Query};
 
 #[derive(Default)]
 pub struct UnionQuery<'a, D, S>
@@ -42,19 +42,19 @@ impl<'a, D: DocumentMetadata, S: SentenceMetadata> UnionQuery<'a, D, S> {
 }
 
 impl<'q, D: DocumentMetadata, S: SentenceMetadata> Query<D, S> for UnionQuery<'q, D, S> {
-    fn find_sentence_ids(&self, db: &SearchEngine<D, S>) -> SentenceIdList {
+    fn find_sentence_ids(&self, db: &SearchEngine<D, S>, _caller: CallerType) -> SentenceIdList {
         let mut sets: Vec<SentenceId> = self
             .queries
             .par_iter()
             .flat_map(|v| {
-                v.find_sentence_ids(db)
+                v.find_sentence_ids(db, CallerType::Union)
                     .ids
                     .into_par_iter()
                     .filter(SentenceId::is_valid)
             })
             .collect();
 
-        sets.par_sort_unstable();
+        sets.par_sort();
         sets.dedup();
 
         SentenceIdList { ids: sets }

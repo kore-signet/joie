@@ -9,5 +9,10 @@ edition = "2021"
 bytemuck = "1.13.1"
 memmap2 = "0.7.1"
 ph = "0.7.3"
+postcard = { version = "1.0.4", features = ["use-std"], optional = true }
 rkyv = "0.7.42"
-zerocopy = "0.6.1"
+serde = { version = "1.0.171", features = ["derive"], optional = true }
+
+[features]
+# default = ["persistence"]
+persistence = ["serde", "postcard"]

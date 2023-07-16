@@ -34,25 +34,19 @@ pub trait Storage: Sized {
     unsafe fn get_unchecked(&self, idx: usize) -> Self::Item<'_>;
 }
 
+#[cfg(feature = "persistence")]
+pub trait PersistentStorage: Storage {
+    type Header: serde::Serialize + serde::de::DeserializeOwned;
+
+    fn header(self) -> Self::Header;
+
+    fn load(header: Self::Header, f: File) -> io::Result<Self>;
+}
+
 pub struct SimpleStorage<T: bytemuck::Pod> {
     len: usize,
     store: Mmap,
     spooky: PhantomData<T>,
-}
-
-impl<T: bytemuck::Pod> SimpleStorage<T> {
-    pub fn build(values: &[T], file: File) -> std::io::Result<SimpleStorage<T>> {
-        let bytes: &[u8] = bytemuck::cast_slice(values);
-        file.set_len(bytes.len() as u64)?;
-        let mut map = unsafe { MmapOptions::new().map_mut(&file)? };
-        map.copy_from_slice(bytes);
-
-        Ok(SimpleStorage {
-            len: values.len(),
-            store: map.make_read_only()?,
-            spooky: PhantomData,
-        })
-    }
 }
 
 impl<T: bytemuck::Pod> Storage for SimpleStorage<T> {
@@ -71,6 +65,45 @@ impl<T: bytemuck::Pod> Storage for SimpleStorage<T> {
 
         &*ptr
     }
+}
+
+#[cfg(feature = "persistence")]
+impl<T: bytemuck::Pod> PersistentStorage for SimpleStorage<T> {
+    type Header = usize;
+
+    fn header(self) -> Self::Header {
+        self.len
+    }
+
+    fn load(header: Self::Header, f: File) -> io::Result<Self> {
+        Ok(SimpleStorage {
+            len: header,
+            store: unsafe { Mmap::map(&f)? },
+            spooky: PhantomData,
+        })
+    }
+}
+
+impl<T: bytemuck::Pod> SimpleStorage<T> {
+    pub fn build(values: &[T], file: File) -> std::io::Result<SimpleStorage<T>> {
+        let bytes: &[u8] = bytemuck::cast_slice(values);
+        file.set_len(bytes.len() as u64)?;
+        let mut map = unsafe { MmapOptions::new().map_mut(&file)? };
+        map.copy_from_slice(bytes);
+
+        Ok(SimpleStorage {
+            len: values.len(),
+            store: map.make_read_only()?,
+            spooky: PhantomData,
+        })
+    }
+}
+
+pub struct MultiStorage<T> {
+    //  offset, length in terms of T
+    positions: Vec<(usize, usize)>,
+    store: Mmap,
+    spooky: PhantomData<T>,
 }
 
 pub struct MultiStorageBuilder<T: bytemuck::Pod> {
@@ -118,49 +151,7 @@ impl<T: bytemuck::Pod> MultiStorageBuilder<T> {
     }
 }
 
-pub struct MultiStorage<T> {
-    //  offset, length in terms of T
-    positions: Vec<(usize, usize)>,
-    store: Mmap,
-    spooky: PhantomData<T>,
-}
-
-impl<T: bytemuck::Pod> MultiStorage<T> {
-    pub fn build(values: &[impl AsRef<[T]>], file: File) -> std::io::Result<MultiStorage<T>> {
-        file.set_len(
-            values
-                .iter()
-                .map(|v| std::mem::size_of_val(v.as_ref()))
-                .sum::<usize>() as u64,
-        )?;
-        let mut map = unsafe { MmapOptions::new().populate().map_mut(&file)? };
-
-        let mut positions = Vec::with_capacity(values.len());
-
-        let mut pos: usize = 0;
-
-        for value in values {
-            let value = value.as_ref();
-            positions.push((pos, value.len()));
-
-            let out_slice = unsafe {
-                std::slice::from_raw_parts_mut((map.as_mut_ptr() as *mut T).add(pos), value.len())
-            };
-
-            out_slice.copy_from_slice(value);
-
-            pos += value.len();
-        }
-
-        Ok(MultiStorage {
-            positions,
-            store: map.make_read_only()?,
-            spooky: PhantomData,
-        })
-    }
-}
-
-impl<T> Storage for MultiStorage<T> {
+impl<T: bytemuck::Pod> Storage for MultiStorage<T> {
     type Item<'a> = &'a [T] where Self: 'a;
 
     fn try_get(&self, idx: usize) -> Option<Self::Item<'_>> {
@@ -173,6 +164,30 @@ impl<T> Storage for MultiStorage<T> {
         let (pos, len) = self.positions.get_unchecked(idx);
         std::slice::from_raw_parts((self.store.as_ptr() as *const T).add(*pos), *len)
     }
+}
+
+#[cfg(feature = "persistence")]
+impl<T: bytemuck::Pod> PersistentStorage for MultiStorage<T> {
+    type Header = Vec<(usize, usize)>;
+
+    fn header(self) -> Self::Header {
+        self.positions
+    }
+
+    fn load(header: Self::Header, f: File) -> io::Result<Self> {
+        Ok(MultiStorage {
+            positions: header,
+            store: unsafe { Mmap::map(&f)? },
+            spooky: PhantomData,
+        })
+    }
+}
+
+pub struct RkyvStorage<T> {
+    //  offset in terms of bytes
+    positions: Vec<usize>,
+    store: Mmap,
+    spooky: PhantomData<T>,
 }
 
 pub struct RkyvStorageBuilder<T: SerializableToFile> {
@@ -226,48 +241,6 @@ impl<T: SerializableToFile> RkyvStorageBuilder<T> {
     }
 }
 
-pub struct RkyvStorage<T> {
-    //  offset in terms of bytes
-    positions: Vec<usize>,
-    store: Mmap,
-    spooky: PhantomData<T>,
-}
-
-impl<T: SerializableToFile> RkyvStorage<T> {
-    pub fn build(values: Vec<T>, file: File) -> std::io::Result<RkyvStorage<T>> {
-        let mut serializer: CompositeSerializer<
-            WriteSerializer<BufWriter<File>>,
-            AllocScratch,
-            SharedSerializeMap,
-        > = CompositeSerializer::new(
-            WriteSerializer::new(BufWriter::new(file)),
-            AllocScratch::new(),
-            SharedSerializeMap::new(),
-        );
-        try_serializer!(serializer.align_for::<T>());
-
-        let mut positions = Vec::with_capacity(values.len());
-
-        for value in values {
-            positions.push(try_serializer!(serializer.serialize_value(&value)));
-        }
-
-        let mut writer = serializer.into_serializer().into_inner();
-        writer.flush()?;
-        let (file, _) = writer.into_parts();
-        // let serialized_values = rkyv::to_bytes::<_, 1024>(&values).unwrap();
-        // file.set_len(serialized_values.len() as u64)?;
-        let map = unsafe { MmapOptions::new().populate().map_mut(&file)? };
-        // map.copy_from_slice(serialized_values.as_bytes());
-
-        Ok(RkyvStorage {
-            positions,
-            store: map.make_read_only()?,
-            spooky: PhantomData,
-        })
-    }
-}
-
 impl<T: Archive> Storage for RkyvStorage<T> {
     type Item<'a> = &'a T::Archived where Self: 'a;
 
@@ -279,5 +252,22 @@ impl<T: Archive> Storage for RkyvStorage<T> {
 
     unsafe fn get_unchecked(&self, idx: usize) -> Self::Item<'_> {
         unsafe { rkyv::archived_value::<T>(&self.store, *self.positions.get_unchecked(idx)) }
+    }
+}
+
+#[cfg(feature = "persistence")]
+impl<T: Archive> PersistentStorage for RkyvStorage<T> {
+    type Header = Vec<usize>;
+
+    fn header(self) -> Self::Header {
+        self.positions
+    }
+
+    fn load(header: Self::Header, f: File) -> io::Result<Self> {
+        Ok(RkyvStorage {
+            positions: header,
+            store: unsafe { Mmap::map(&f)? },
+            spooky: PhantomData,
+        })
     }
 }

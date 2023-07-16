@@ -15,7 +15,7 @@ use crate::{
     DocumentMetadata, SentenceMetadata,
 };
 
-use super::{DocumentFilter, PhraseQuery, Query};
+use super::{CallerType, DocumentFilter, PhraseQuery, Query};
 
 #[derive(Default)]
 pub struct IntersectingQuery<'a, D, S>
@@ -51,11 +51,11 @@ where
     D: DocumentMetadata,
     S: SentenceMetadata,
 {
-    fn find_sentence_ids(&self, db: &SearchEngine<D, S>) -> SentenceIdList {
+    fn find_sentence_ids(&self, db: &SearchEngine<D, S>, _caller: CallerType) -> SentenceIdList {
         let mut sets: Vec<SentenceIdList> = self
             .queries
             .par_iter()
-            .map(|v| v.find_sentence_ids(db))
+            .map(|v| v.find_sentence_ids(db, CallerType::Intersection))
             .collect();
         sets.sort_by_key(|v| v.ids.len());
 
@@ -142,7 +142,7 @@ where
     S: SentenceMetadata,
     DF: DocumentFilter<D>,
 {
-    fn find_sentence_ids(&self, db: &SearchEngine<D, S>) -> SentenceIdList {
+    fn find_sentence_ids(&self, db: &SearchEngine<D, S>, _caller: CallerType) -> SentenceIdList {
         let mut term_sets: Vec<&[SentenceId]> = self
             .queries
             .par_iter()

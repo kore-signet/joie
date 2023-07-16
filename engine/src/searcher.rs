@@ -1,5 +1,6 @@
 use rkyv::Archive;
 
+use crate::query::CallerType;
 use crate::{highlight::highlight_by_ranges, query::Query};
 use crate::{sentence::*, CopyableRange, DocumentMetadata, SentenceMetadata};
 
@@ -33,7 +34,7 @@ where
         &'a self,
         query: &'a impl Query<D, S>,
     ) -> impl Iterator<Item = SearchResult<'a, S>> + 'a {
-        let ids = query.find_sentence_ids(self);
+        let ids = query.find_sentence_ids(self, CallerType::TopLevel);
 
         ids.into_iter()
             .map(|sentence_id| SearchResult {

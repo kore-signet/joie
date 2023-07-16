@@ -15,6 +15,7 @@ pub struct SentenceWithHighlights<'a, M: Archive> {
 }
 
 #[derive(Pod, Clone, Copy, Zeroable, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+#[cfg_attr(feature = "persistence", derive(serde::Serialize, serde::Deserialize))]
 #[repr(C, align(8))]
 pub struct SentenceId {
     pub doc: u32,

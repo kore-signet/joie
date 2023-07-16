@@ -14,7 +14,6 @@ pub use intersect::*;
 pub use keywords::*;
 pub use phrase::*;
 pub use union_query::*;
-
 pub mod parser;
 
 use crate::{
@@ -24,7 +23,8 @@ use crate::{
 };
 
 pub trait Query<D: DocumentMetadata, S: SentenceMetadata> {
-    fn find_sentence_ids(&self, db: &SearchEngine<D, S>) -> SentenceIdList;
+    // is_part_of_intersect can be used to, for example, ignore dedup() in keyword queries
+    fn find_sentence_ids(&self, db: &SearchEngine<D, S>, caller: CallerType) -> SentenceIdList;
 
     fn filter_map(&self, _result: &mut SearchResult<'_, S>) -> bool {
         true
@@ -101,8 +101,9 @@ impl<D: DocumentMetadata + 'static, S: SentenceMetadata + 'static> Query<D, S>
     fn find_sentence_ids(
         &self,
         db: &crate::searcher::SearchEngine<D, S>,
+        caller: CallerType,
     ) -> crate::id_list::SentenceIdList {
-        self.inner.get().find_sentence_ids(db)
+        self.inner.get().find_sentence_ids(db, caller)
     }
 
     fn find_highlights(&self, sentence: &mut crate::searcher::SearchResult<'_, S>) {
@@ -124,8 +125,9 @@ impl<'a, D: DocumentMetadata + 'a, S: SentenceMetadata + 'a> Query<D, S> for Dyn
     fn find_sentence_ids(
         &self,
         db: &crate::searcher::SearchEngine<D, S>,
+        caller: CallerType,
     ) -> crate::id_list::SentenceIdList {
-        self.inner.find_sentence_ids(db)
+        self.inner.find_sentence_ids(db, caller)
     }
 
     fn find_highlights(&self, sentence: &mut crate::searcher::SearchResult<'_, S>) {
@@ -142,5 +144,28 @@ impl<'a, D: DocumentMetadata, S: SentenceMetadata> Deref for DynQuery<'a, D, S> 
 
     fn deref(&self) -> &Self::Target {
         self.inner.deref()
+    }
+}
+
+// what is this query being called by?
+#[derive(Debug, Copy, Clone, PartialEq)]
+#[repr(u8)]
+pub enum CallerType {
+    Intersection,
+    Union,
+    TopLevel,
+}
+
+impl CallerType {
+    pub fn intersect(&self) -> bool {
+        *self == CallerType::Intersection
+    }
+
+    pub fn union(&self) -> bool {
+        *self == CallerType::Union
+    }
+
+    pub fn top_level(&self) -> bool {
+        *self == CallerType::TopLevel
     }
 }

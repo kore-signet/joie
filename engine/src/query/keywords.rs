@@ -13,7 +13,7 @@ use crate::{
     DocumentMetadata, SentenceMetadata,
 };
 
-use super::{DocumentFilter, Query};
+use super::{CallerType, DocumentFilter, Query};
 
 #[derive(Clone, Copy)]
 pub struct KeywordsQuery<'a, D, S, DF>
@@ -34,28 +34,42 @@ where
     S: SentenceMetadata,
     DF: DocumentFilter<D>,
 {
-    fn find_sentence_ids(&self, db: &SearchEngine<D, S>) -> SentenceIdList {
-        let mut ids: Vec<SentenceId> = Vec::new();
+    fn find_sentence_ids(&self, db: &SearchEngine<D, S>, caller: CallerType) -> SentenceIdList {
+        let mut ids = if let [lhs, rhs] = self.keywords {
+            let (lhs, rhs) = (
+                db.index.get(lhs).unwrap_or(&[]),
+                db.index.get(rhs).unwrap_or(&[]),
+            );
 
-        for term in self.keywords {
-            let set = db.index.get(term).unwrap_or(&[]);
-
-            let dst_len = ids.len();
-            let src_len = set.len();
-
-            ids.reserve(src_len);
-
-            unsafe {
-                let dst_ptr = ids.as_mut_ptr().add(dst_len);
-                std::ptr::copy_nonoverlapping(set.as_ptr(), dst_ptr, src_len);
-                ids.set_len(dst_len + src_len);
+            let mut ids = SentenceIdList::merge_slices(lhs, rhs);
+            if !caller.intersect() {
+                ids.ids.dedup();
             }
-        }
 
-        ids.par_sort();
-        ids.dedup();
+            ids
+        } else {
+            let mut ids: Vec<SentenceId> = Vec::new();
+            for term in self.keywords {
+                let set = db.index.get(term).unwrap_or(&[]);
 
-        let mut ids = SentenceIdList { ids };
+                let dst_len = ids.len();
+                let src_len = set.len();
+
+                ids.reserve(src_len);
+
+                unsafe {
+                    let dst_ptr = ids.as_mut_ptr().add(dst_len);
+                    std::ptr::copy_nonoverlapping(set.as_ptr(), dst_ptr, src_len);
+                    ids.set_len(dst_len + src_len);
+                }
+            }
+            ids.par_sort();
+            ids.dedup();
+            SentenceIdList { ids }
+        };
+
+        //     ids
+        // };
 
         if DF::needed() {
             ids.retain(|id| {
@@ -126,8 +140,9 @@ impl<D: DocumentMetadata, S: SentenceMetadata, DF: DocumentFilter<D>> Query<D, S
     fn find_sentence_ids(
         &self,
         db: &crate::searcher::SearchEngine<D, S>,
+        caller: CallerType,
     ) -> crate::id_list::SentenceIdList {
-        self.inner.get().find_sentence_ids(db)
+        self.inner.get().find_sentence_ids(db, caller)
     }
 
     fn find_highlights(&self, sentence: &mut crate::searcher::SearchResult<'_, S>) {

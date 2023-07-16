@@ -1,9 +1,14 @@
 use std::collections::HashMap;
 use std::hash::Hash;
+#[cfg(feature = "persistence")]
+use std::io::ErrorKind;
 use std::io::{self, BufWriter};
 use std::{fmt::Debug, fs::File};
 
 pub mod store;
+
+#[cfg(feature = "persistence")]
+use serde::de::DeserializeOwned;
 
 pub use store::*;
 
@@ -14,6 +19,14 @@ use rkyv::ser::serializers::{
 
 pub type MultiMap<K, V> = ImmutableMap<K, MultiStorage<V>>;
 pub type RkyvMap<K, V> = ImmutableMap<K, RkyvStorage<V>>;
+
+#[cfg(feature = "persistence")]
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct MapHeader<K, S> {
+    keys: Vec<K>,
+    hasher: Vec<u8>,
+    store_header: S,
+}
 
 // i think this is the worst trait bound to ever be
 pub trait SerializableToFile:
@@ -125,6 +138,36 @@ impl<K: Hash + Sync + Send + Clone + PartialEq + Debug, V: SerializableToFile>
             hasher,
             keys: reordered_keys,
             store: storage,
+        })
+    }
+}
+
+#[cfg(feature = "persistence")]
+impl<K: Hash + serde::Serialize, S: PersistentStorage> ImmutableMap<K, S> {
+    pub fn into_header(self) -> MapHeader<K, S::Header> {
+        let mut hasher = Vec::with_capacity(self.hasher.write_bytes());
+        self.hasher.write(&mut hasher).unwrap();
+
+        MapHeader {
+            keys: self.keys,
+            hasher,
+            store_header: self.store.header(),
+        }
+    }
+}
+
+#[cfg(feature = "persistence")]
+impl<K: Hash + DeserializeOwned, S: PersistentStorage> ImmutableMap<K, S> {
+    pub fn load(header: &[u8], store: File) -> io::Result<ImmutableMap<K, S>> {
+        let header: MapHeader<K, S::Header> =
+            postcard::from_bytes(header).map_err(|e| io::Error::new(ErrorKind::InvalidData, e))?;
+
+        let hasher = GOFunction::read(&mut header.hasher.as_slice()).unwrap();
+
+        Ok(ImmutableMap {
+            hasher,
+            keys: header.keys,
+            store: S::load(header.store_header, store)?,
         })
     }
 }
