@@ -3,6 +3,8 @@ use rayon::prelude::{IntoParallelRefMutIterator, ParallelIterator};
 
 use crate::sentence::SentenceId;
 
+const PARALLEL_MERGE_THRESH: usize = 32768;
+
 pub struct SentenceIdList {
     pub(crate) ids: Vec<SentenceId>,
 }
@@ -106,7 +108,7 @@ fn par_merge<T: Ord + Copy + Send + Sync>(a: &[T], b: &[T], output: &mut [T]) {
         return;
     }
 
-    if a.len() < 8192 {
+    if a.len() < PARALLEL_MERGE_THRESH {
         scalar_merge(a, b, output);
         return;
     }
