@@ -6,7 +6,7 @@ use std::{
 };
 
 use logos::Logos;
-use query::{parser::QueryToken, DocumentFilter, DynQuery, Query, QueryBuilder, YokedPhraseQuery};
+use query::{parser::QueryToken, DocumentFilter, DynamicQuery, Query, QueryBuilder};
 use rkyv::Archive;
 use searcher::{SearchEngine, SearchResult};
 
@@ -18,7 +18,6 @@ use crate::sentence::{Sentence, SentenceId};
 use storage::{MultiMap, PersistentStorage, SimpleStorage};
 
 use term_map::FrozenTermMap;
-use yoke::Yoke;
 
 pub mod builder;
 pub mod highlight;
@@ -89,32 +88,25 @@ where
         query: &str,
         document_filter: F,
         optimize: bool,
-    ) -> Option<DynQuery<DM, SM>> {
+    ) -> Option<DynamicQuery<DM, SM, F>> {
         let tokens: Vec<QueryToken<'_>> = QueryToken::lexer(query)
             .collect::<Result<Vec<QueryToken<'_>>, _>>()
             .ok()?;
         let expr = query::parser::query_grammar::expression(&tokens).ok()?;
 
-        Some(DynQuery {
-            inner: expr.parse(&self.term_map, document_filter, optimize),
-        })
+        Some(expr.parse(&self.term_map, document_filter, optimize))
     }
 
     pub fn phrase_query<F: DocumentFilter<DM> + Clone + 'static>(
         &self,
         query: &str,
         document_filter: F,
-    ) -> DynQuery<DM, SM> {
+    ) -> DynamicQuery<DM, SM, F> {
         let tokens = self.term_map.tokenize_phrase(query);
-        DynQuery {
-            inner: Box::new(YokedPhraseQuery {
-                inner: Yoke::attach_to_cart(tokens, |tokens| {
-                    QueryBuilder::start(tokens)
-                        .filter_documents(document_filter)
-                        .phrases()
-                }),
-            }),
-        }
+        QueryBuilder::start(&tokens)
+            .filter_documents(document_filter)
+            .phrases()
+            .into()
     }
 }
 

@@ -1,10 +1,10 @@
 use std::marker::PhantomData;
 
-use arrayvec::ArrayVec;
 use rayon::{
     prelude::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator},
     slice::ParallelSliceMut,
 };
+use smallvec::SmallVec;
 
 use crate::{
     highlight::collapse_overlapped_ranges,
@@ -14,34 +14,37 @@ use crate::{
     DocumentMetadata, SentenceMetadata,
 };
 
-use super::{CallerType, Query};
+use super::{CallerType, DocumentFilter, DynamicQuery, Query};
 
 #[derive(Default)]
-pub struct UnionQuery<'a, D, S>
+pub struct UnionQuery<D, S, DF>
 where
     D: DocumentMetadata,
     S: SentenceMetadata,
+    DF: DocumentFilter<D>,
 {
-    queries: ArrayVec<Box<(dyn Query<D, S> + Send + Sync + 'a)>, 4>,
+    queries: SmallVec<[Box<DynamicQuery<D, S, DF>>; 4]>,
     spooky: PhantomData<(D, S)>,
 }
 
-impl<'a, D: DocumentMetadata, S: SentenceMetadata> UnionQuery<'a, D, S> {
-    pub fn or(&mut self, query: (impl Query<D, S> + Send + Sync + 'a)) {
-        self.queries.push(Box::new(query))
+impl<D: DocumentMetadata, S: SentenceMetadata, DF: DocumentFilter<D>> UnionQuery<D, S, DF> {
+    pub fn or(&mut self, query: impl Into<DynamicQuery<D, S, DF>>) {
+        self.queries.push(Box::new(query.into()))
     }
 
-    pub fn from_boxed(
-        queries: impl IntoIterator<Item = Box<dyn Query<D, S> + Send + Sync + 'a>>,
-    ) -> UnionQuery<'a, D, S> {
+    pub fn from_dynamic(
+        queries: impl IntoIterator<Item = impl Into<DynamicQuery<D, S, DF>>>,
+    ) -> UnionQuery<D, S, DF> {
         UnionQuery {
-            queries: ArrayVec::from_iter(queries.into_iter()),
+            queries: SmallVec::from_iter(queries.into_iter().map(|v| v.into()).map(Box::new)),
             spooky: PhantomData,
         }
     }
 }
 
-impl<'q, D: DocumentMetadata, S: SentenceMetadata> Query<D, S> for UnionQuery<'q, D, S> {
+impl<D: DocumentMetadata, S: SentenceMetadata, DF: DocumentFilter<D>> Query<D, S>
+    for UnionQuery<D, S, DF>
+{
     fn find_sentence_ids(&self, db: &SearchEngine<D, S>, _caller: CallerType) -> SentenceIdList {
         let mut sets: Vec<SentenceId> = self
             .queries

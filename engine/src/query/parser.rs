@@ -2,15 +2,14 @@ use std::fmt;
 
 use logos::{Logos, SpannedIter};
 use smartstring::{LazyCompact, SmartString};
-use yoke::Yoke;
 
 use crate::{
-    query::{DocumentFilter, IntersectingQuery, PhraseQuery, Query, QueryBuilder, UnionQuery},
+    query::{DocumentFilter, IntersectingQuery, PhraseQuery, QueryBuilder, UnionQuery},
     term_map::FrozenTermMap,
     DocumentMetadata, SentenceMetadata,
 };
 
-use super::{YokedIntersectingPhraseQuery, YokedKeywordsQuery, YokedPhraseQuery};
+use super::{DynamicQuery, IntersectingPhraseQuery};
 
 #[derive(Debug, Logos, Clone, Copy)]
 pub enum QueryToken<'a> {
@@ -73,46 +72,41 @@ pub enum Expression {
 }
 
 impl Expression {
-    pub fn parse<'a, D: DocumentMetadata + 'a, S: SentenceMetadata + 'static>(
+    pub fn parse<
+        'a,
+        D: DocumentMetadata + 'a,
+        S: SentenceMetadata + 'static,
+        DF: DocumentFilter<D> + Clone + 'static,
+    >(
         self,
         terms: &FrozenTermMap,
-        doc_filter: impl DocumentFilter<D> + Clone + 'static,
+        doc_filter: DF,
         optimize: bool,
-    ) -> Box<dyn Query<D, S> + Send + Sync> {
+    ) -> DynamicQuery<D, S, DF> {
         match self {
-            Expression::Literal(v) => Box::new(YokedPhraseQuery {
-                inner: Yoke::attach_to_cart(terms.tokenize_phrase(&v), |q| {
-                    QueryBuilder::start(q)
-                        .filter_documents(doc_filter)
-                        .phrases()
-                }),
-            }),
+            Expression::Literal(v) => QueryBuilder::start(&terms.tokenize_phrase(&v))
+                .filter_documents(doc_filter)
+                .phrases()
+                .into(),
             Expression::And(lhs, rhs) => match (*lhs, *rhs) {
                 (Expression::Literal(lhs), Expression::Literal(rhs)) if optimize => {
                     let lhs_filter = doc_filter.clone();
-                    let lhs: Yoke<PhraseQuery<'_, D, S, _>, Vec<u32>> =
-                        Yoke::attach_to_cart(terms.tokenize_phrase(&lhs), |t| {
-                            QueryBuilder::start(t)
-                                .filter_documents(lhs_filter)
-                                .phrases()
-                        });
+                    let lhs: PhraseQuery<D, S, _> =
+                        QueryBuilder::start(&terms.tokenize_phrase(&lhs))
+                            .filter_documents(lhs_filter)
+                            .phrases();
                     let rhs_filter = doc_filter.clone();
-                    let rhs: Yoke<PhraseQuery<'_, D, S, _>, Vec<u32>> =
-                        Yoke::attach_to_cart(terms.tokenize_phrase(&rhs), |t| {
-                            QueryBuilder::start(t)
-                                .filter_documents(rhs_filter)
-                                .phrases()
-                        });
+                    let rhs: PhraseQuery<D, S, _> =
+                        QueryBuilder::start(&terms.tokenize_phrase(&rhs))
+                            .filter_documents(rhs_filter)
+                            .phrases();
 
-                    Box::new(YokedIntersectingPhraseQuery::from_iter(
-                        [lhs, rhs],
-                        doc_filter,
-                    ))
+                    IntersectingPhraseQuery::from_iter([lhs, rhs], doc_filter).into()
                 }
                 (lhs, rhs) => {
                     let lhs = lhs.parse(terms, doc_filter.clone(), optimize);
-                    let rhs = rhs.parse(terms, doc_filter, optimize);
-                    Box::new(IntersectingQuery::from_boxed([lhs, rhs]))
+                    let rhs = rhs.parse(terms, doc_filter.clone(), optimize);
+                    IntersectingQuery::from_boxed([lhs, rhs], doc_filter).into()
                 }
             },
             Expression::Or(lhs, rhs) => match (*lhs, *rhs) {
@@ -122,36 +116,28 @@ impl Expression {
 
                     if lhs_terms.len() == 1 && rhs_terms.len() == 1 {
                         let query_terms = vec![lhs_terms[0], rhs_terms[0]];
-                        Box::new(YokedKeywordsQuery {
-                            inner: Yoke::attach_to_cart(query_terms, |t| {
-                                QueryBuilder::start(t)
-                                    .filter_documents(doc_filter)
-                                    .keywords()
-                            }),
-                        })
+                        QueryBuilder::start(&query_terms)
+                            .filter_documents(doc_filter)
+                            .keywords()
+                            .into()
                     } else {
-                        let filter = doc_filter.clone();
-                        let lhs = Box::new(YokedPhraseQuery {
-                            inner: Yoke::attach_to_cart(lhs_terms, |q| {
-                                QueryBuilder::start(q).filter_documents(filter).phrases()
-                            }),
-                        });
+                        let _filter = doc_filter.clone();
 
-                        let rhs: Box<dyn Query<D, S> + Send + Sync> = Box::new(YokedPhraseQuery {
-                            inner: Yoke::attach_to_cart(rhs_terms, |q| {
-                                QueryBuilder::start(q)
-                                    .filter_documents(doc_filter)
-                                    .phrases()
-                            }),
-                        });
+                        let lhs = QueryBuilder::start(&lhs_terms)
+                            .filter_documents(doc_filter.clone())
+                            .phrases();
 
-                        Box::new(UnionQuery::from_boxed([lhs, rhs]))
+                        let rhs = QueryBuilder::start(&rhs_terms)
+                            .filter_documents(doc_filter)
+                            .phrases();
+
+                        UnionQuery::from_dynamic([lhs, rhs]).into()
                     }
                 }
                 (lhs, rhs) => {
                     let lhs = lhs.parse(terms, doc_filter.clone(), optimize);
                     let rhs = rhs.parse(terms, doc_filter, optimize);
-                    Box::new(UnionQuery::from_boxed([lhs, rhs]))
+                    UnionQuery::from_dynamic([lhs, rhs]).into()
                 }
             },
         }

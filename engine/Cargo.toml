@@ -6,7 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-arrayvec = "0.7.4"
 bytemuck = { version = "1.13.1", features = ["derive"] }
 logos = "0.13.0"
 memchr = "2.5.0"
@@ -21,7 +20,7 @@ smallvec = { version = "1.11.0", features = ["union", "const_generics"] }
 smartstring = { version = "1.0.1" }
 storage = { path = "../storage" }
 unicode-segmentation = "1.10.1"
-yoke = { version = "0.7.1", features = ["derive"] }
+enum_dispatch = "0.3.12"
 
 [features]
 # default = ["persistence"]

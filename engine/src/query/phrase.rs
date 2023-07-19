@@ -4,7 +4,6 @@ use memchr::memmem::Finder;
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 use rkyv::Archive;
 use storage::Storage;
-use yoke::Yoke;
 
 use crate::{
     highlight::Highlighter,
@@ -17,19 +16,19 @@ use crate::{
 use super::{CallerType, DocumentFilter, Query};
 
 #[derive(Clone)]
-pub struct PhraseQuery<'a, D, S, DF>
+pub struct PhraseQuery<D, S, DF>
 where
     D: DocumentMetadata,
     S: SentenceMetadata,
     DF: DocumentFilter<D>,
 {
-    pub(crate) phrase: &'a [u32],
-    pub(crate) highlighter: PhraseHighlighter<'a>,
+    pub(crate) phrase: Vec<u32>,
+    pub(crate) highlighter: PhraseHighlighter,
     pub(crate) document_filter: DF,
     pub(crate) spooky: PhantomData<(D, S)>,
 }
 
-impl<'b, D, S, DF> Query<D, S> for PhraseQuery<'b, D, S, DF>
+impl<D, S, DF> Query<D, S> for PhraseQuery<D, S, DF>
 where
     D: DocumentMetadata,
     S: SentenceMetadata,
@@ -87,50 +86,22 @@ where
     }
 }
 
-pub struct YokedPhraseQuery<
-    D: DocumentMetadata + 'static,
-    S: SentenceMetadata + 'static,
-    DF: DocumentFilter<D> + 'static,
-> {
-    pub inner: Yoke<PhraseQuery<'static, D, S, DF>, Vec<u32>>,
-}
-
-impl<D: DocumentMetadata, S: SentenceMetadata, DF: DocumentFilter<D>> Query<D, S>
-    for YokedPhraseQuery<D, S, DF>
-{
-    fn find_sentence_ids(
-        &self,
-        db: &crate::searcher::SearchEngine<D, S>,
-        caller: CallerType,
-    ) -> crate::id_list::SentenceIdList {
-        self.inner.get().find_sentence_ids(db, caller)
-    }
-
-    fn find_highlights(&self, sentence: &mut crate::searcher::SearchResult<'_, S>) {
-        self.inner.get().find_highlights(sentence)
-    }
-
-    fn filter_map(&self, result: &mut crate::searcher::SearchResult<'_, S>) -> bool {
-        self.inner.get().filter_map(result)
-    }
-}
-
 #[derive(Clone)]
-pub struct PhraseHighlighter<'a> {
-    phrase: &'a [u32],
-    finder: Finder<'a>,
+pub struct PhraseHighlighter {
+    phrase: Vec<u32>,
+    finder: Finder<'static>,
 }
 
-impl<'a> PhraseHighlighter<'a> {
-    pub fn new(phrase: &'a [u32]) -> PhraseHighlighter<'a> {
+impl PhraseHighlighter {
+    pub fn new(phrase: &[u32]) -> PhraseHighlighter {
         PhraseHighlighter {
-            phrase,
-            finder: Finder::new(bytemuck::cast_slice(phrase)),
+            phrase: Vec::from(phrase),
+            finder: Finder::new(bytemuck::cast_slice(phrase)).into_owned(),
         }
     }
 }
 
-impl<'a> Highlighter<'a> for PhraseHighlighter<'a> {
+impl<'a> Highlighter<'a> for PhraseHighlighter {
     fn highlight<'b, S: Archive>(
         &'a self,
         sentence: &'b ArchivedSentence<S>,
@@ -151,43 +122,5 @@ impl<'a> Highlighter<'a> for PhraseHighlighter<'a> {
         }
 
         highlights
-    }
-}
-
-/* YOKING TRICKS */
-unsafe impl<'a, D, S, DF> yoke::Yokeable<'a> for PhraseQuery<'static, D, S, DF>
-where
-    D: DocumentMetadata + 'static,
-    S: SentenceMetadata + 'static,
-    DF: DocumentFilter<D> + 'static,
-{
-    type Output = PhraseQuery<'a, D, S, DF>;
-    #[inline]
-    fn transform(&'a self) -> &'a Self::Output {
-        self
-    }
-    #[inline]
-    fn transform_owned(self) -> Self::Output {
-        self
-    }
-    #[inline]
-    unsafe fn make(this: Self::Output) -> Self {
-        use core::{mem, ptr};
-        debug_assert!(mem::size_of::<Self::Output>() == mem::size_of::<Self>());
-        let ptr: *const Self = (&this as *const Self::Output).cast();
-        #[allow(forgetting_copy_types)]
-        mem::forget(this);
-        ptr::read(ptr)
-    }
-    #[inline]
-    fn transform_mut<F>(&'a mut self, f: F)
-    where
-        F: 'static + for<'b> FnOnce(&'b mut Self::Output),
-    {
-        unsafe {
-            f(core::mem::transmute::<&'a mut Self, &'a mut Self::Output>(
-                self,
-            ))
-        }
     }
 }

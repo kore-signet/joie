@@ -1,6 +1,6 @@
-use std::{marker::PhantomData, ops::Deref};
+use std::marker::PhantomData;
 
-use yoke::{Yoke, Yokeable};
+use enum_dispatch::enum_dispatch;
 
 mod filter;
 mod intersect;
@@ -22,6 +22,7 @@ use crate::{
     DocumentMetadata, SentenceMetadata,
 };
 
+#[enum_dispatch]
 pub trait Query<D: DocumentMetadata, S: SentenceMetadata> {
     // is_part_of_intersect can be used to, for example, ignore dedup() in keyword queries
     fn find_sentence_ids(&self, db: &SearchEngine<D, S>, caller: CallerType) -> SentenceIdList;
@@ -31,6 +32,15 @@ pub trait Query<D: DocumentMetadata, S: SentenceMetadata> {
     }
 
     fn find_highlights(&self, sentence: &mut SearchResult<'_, S>);
+}
+
+#[enum_dispatch(Query<D,S>)]
+pub enum DynamicQuery<D: DocumentMetadata, S: SentenceMetadata, DF: DocumentFilter<D>> {
+    Phrase(PhraseQuery<D, S, DF>),
+    Keywords(KeywordsQuery<D, S, DF>),
+    Intersection(IntersectingQuery<D, S, DF>),
+    PhraseIntersection(IntersectingPhraseQuery<D, S, DF>),
+    Union(UnionQuery<D, S, DF>),
 }
 
 #[derive(Clone, Copy)]
@@ -72,78 +82,22 @@ where
         }
     }
 
-    pub fn phrases(self) -> PhraseQuery<'a, D, S, DF> {
+    pub fn phrases(self) -> PhraseQuery<D, S, DF> {
         PhraseQuery {
-            phrase: self.terms,
+            phrase: self.terms.into(),
             highlighter: PhraseHighlighter::new(self.terms),
             document_filter: self.document_filter,
             spooky: PhantomData,
         }
     }
 
-    pub fn keywords(self) -> KeywordsQuery<'a, D, S, DF> {
+    pub fn keywords(self) -> KeywordsQuery<D, S, DF> {
         KeywordsQuery {
-            keywords: self.terms,
+            keywords: self.terms.into(),
             highlighter: KeywordHighlighter::new(self.terms),
             document_filter: self.document_filter,
             spooky: PhantomData,
         }
-    }
-}
-
-pub struct YokedDynQuery<D: DocumentMetadata + 'static, S: SentenceMetadata + 'static> {
-    pub inner: Yoke<DynQuery<'static, D, S>, Vec<u32>>,
-}
-
-impl<D: DocumentMetadata + 'static, S: SentenceMetadata + 'static> Query<D, S>
-    for YokedDynQuery<D, S>
-{
-    fn find_sentence_ids(
-        &self,
-        db: &crate::searcher::SearchEngine<D, S>,
-        caller: CallerType,
-    ) -> crate::id_list::SentenceIdList {
-        self.inner.get().find_sentence_ids(db, caller)
-    }
-
-    fn find_highlights(&self, sentence: &mut crate::searcher::SearchResult<'_, S>) {
-        self.inner.get().find_highlights(sentence)
-    }
-
-    fn filter_map(&self, result: &mut crate::searcher::SearchResult<'_, S>) -> bool {
-        self.inner.get().filter_map(result)
-    }
-}
-
-#[derive(Yokeable)]
-#[repr(transparent)]
-pub struct DynQuery<'a, D: DocumentMetadata, S: SentenceMetadata> {
-    pub(crate) inner: Box<dyn Query<D, S> + Send + Sync + 'a>,
-}
-
-impl<'a, D: DocumentMetadata + 'a, S: SentenceMetadata + 'a> Query<D, S> for DynQuery<'a, D, S> {
-    fn find_sentence_ids(
-        &self,
-        db: &crate::searcher::SearchEngine<D, S>,
-        caller: CallerType,
-    ) -> crate::id_list::SentenceIdList {
-        self.inner.find_sentence_ids(db, caller)
-    }
-
-    fn find_highlights(&self, sentence: &mut crate::searcher::SearchResult<'_, S>) {
-        self.inner.find_highlights(sentence)
-    }
-
-    fn filter_map(&self, result: &mut crate::searcher::SearchResult<'_, S>) -> bool {
-        self.inner.filter_map(result)
-    }
-}
-
-impl<'a, D: DocumentMetadata, S: SentenceMetadata> Deref for DynQuery<'a, D, S> {
-    type Target = dyn Query<D, S> + Send + Sync + 'a;
-
-    fn deref(&self) -> &Self::Target {
-        self.inner.deref()
     }
 }
 

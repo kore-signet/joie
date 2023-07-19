@@ -1,11 +1,10 @@
-use arrayvec::ArrayVec;
 use rayon::{
     prelude::{IntoParallelRefIterator, ParallelIterator},
     slice::ParallelSliceMut,
 };
+use smallvec::SmallVec;
 use std::marker::PhantomData;
 use storage::Storage;
-use yoke::Yoke;
 
 use crate::{
     highlight::collapse_overlapped_ranges,
@@ -15,41 +14,47 @@ use crate::{
     DocumentMetadata, SentenceMetadata,
 };
 
-use super::{CallerType, DocumentFilter, PhraseQuery, Query};
+use super::{CallerType, DocumentFilter, DynamicQuery, PhraseQuery, Query};
 
 #[derive(Default)]
-pub struct IntersectingQuery<'a, D, S>
+pub struct IntersectingQuery<D, S, DF>
 where
     D: DocumentMetadata,
     S: SentenceMetadata,
+    DF: DocumentFilter<D>,
 {
-    queries: ArrayVec<Box<(dyn Query<D, S> + Send + Sync + 'a)>, 4>,
+    queries: SmallVec<[Box<DynamicQuery<D, S, DF>>; 4]>,
+    document_filter: DF,
     spooky: PhantomData<(D, S)>,
 }
 
-impl<'a, D, S> IntersectingQuery<'a, D, S>
+impl<D, S, DF> IntersectingQuery<D, S, DF>
 where
     D: DocumentMetadata,
     S: SentenceMetadata,
+    DF: DocumentFilter<D>,
 {
-    pub fn and(&mut self, query: impl Query<D, S> + Send + Sync + 'a) {
-        self.queries.push(Box::new(query))
+    pub fn and(&mut self, query: impl Into<DynamicQuery<D, S, DF>>) {
+        self.queries.push(Box::new(query.into()))
     }
 
     pub fn from_boxed(
-        queries: impl IntoIterator<Item = Box<dyn Query<D, S> + Send + Sync + 'a>>,
-    ) -> IntersectingQuery<'a, D, S> {
+        queries: impl IntoIterator<Item = impl Into<DynamicQuery<D, S, DF>>>,
+        document_filter: DF,
+    ) -> IntersectingQuery<D, S, DF> {
         IntersectingQuery {
-            queries: ArrayVec::from_iter(queries.into_iter()),
+            queries: SmallVec::from_iter(queries.into_iter().map(|v| v.into()).map(Box::new)),
+            document_filter,
             spooky: PhantomData,
         }
     }
 }
 
-impl<'q, D, S> Query<D, S> for IntersectingQuery<'q, D, S>
+impl<D, S, DF> Query<D, S> for IntersectingQuery<D, S, DF>
 where
     D: DocumentMetadata,
     S: SentenceMetadata,
+    DF: DocumentFilter<D>,
 {
     fn find_sentence_ids(&self, db: &SearchEngine<D, S>, _caller: CallerType) -> SentenceIdList {
         let mut sets: Vec<SentenceIdList> = self
@@ -66,7 +71,12 @@ where
             res.ids.par_sort_unstable();
             for set in rhs {
                 set.ids.par_sort_unstable();
-                res.retain(|v| set.ids.binary_search(v).is_ok())
+                res.retain(|v| {
+                    set.ids.binary_search(v).is_ok()
+                        && self
+                            .document_filter
+                            .filter_document(unsafe { db.doc_meta.get_unchecked(v.doc as usize) })
+                })
             }
         }
 
@@ -107,36 +117,36 @@ where
 }
 
 #[derive(Default)]
-pub struct YokedIntersectingPhraseQuery<D, S, DF>
+pub struct IntersectingPhraseQuery<D, S, DF>
 where
-    D: DocumentMetadata + 'static,
-    S: SentenceMetadata + 'static,
-    DF: DocumentFilter<D> + 'static,
+    D: DocumentMetadata,
+    S: SentenceMetadata,
+    DF: DocumentFilter<D>,
 {
-    queries: ArrayVec<Yoke<PhraseQuery<'static, D, S, DF>, Vec<u32>>, 4>,
+    queries: SmallVec<[PhraseQuery<D, S, DF>; 2]>,
     document_filter: DF,
     spooky: PhantomData<(D, S)>,
 }
 
-impl<D, S, DF> YokedIntersectingPhraseQuery<D, S, DF>
+impl<D, S, DF> IntersectingPhraseQuery<D, S, DF>
 where
     D: DocumentMetadata,
     S: SentenceMetadata,
     DF: DocumentFilter<D>,
 {
     pub fn from_iter(
-        queries: impl IntoIterator<Item = Yoke<PhraseQuery<'static, D, S, DF>, Vec<u32>>>,
+        queries: impl IntoIterator<Item = PhraseQuery<D, S, DF>>,
         filter: DF,
-    ) -> YokedIntersectingPhraseQuery<D, S, DF> {
-        YokedIntersectingPhraseQuery {
+    ) -> IntersectingPhraseQuery<D, S, DF> {
+        IntersectingPhraseQuery {
             document_filter: filter,
-            queries: ArrayVec::from_iter(queries.into_iter()),
+            queries: SmallVec::from_iter(queries.into_iter()),
             spooky: PhantomData,
         }
     }
 }
 
-impl<D, S, DF> Query<D, S> for YokedIntersectingPhraseQuery<D, S, DF>
+impl<D, S, DF> Query<D, S> for IntersectingPhraseQuery<D, S, DF>
 where
     D: DocumentMetadata,
     S: SentenceMetadata,
@@ -148,7 +158,6 @@ where
             .par_iter()
             .flat_map(|query| {
                 query
-                    .get()
                     .phrase
                     .par_iter()
                     .map(|term| db.index.get(term).unwrap_or(&[]))
@@ -189,7 +198,7 @@ where
     fn filter_map(&self, result: &mut SearchResult<'_, S>) -> bool {
         let mut highlights = Vec::new();
         for query in &self.queries {
-            if !query.get().filter_map(result) {
+            if !query.filter_map(result) {
                 return false;
             }
 
@@ -209,7 +218,7 @@ where
     fn find_highlights(&self, result: &mut SearchResult<'_, S>) {
         let mut highlights = std::mem::take(&mut result.highlighted_parts);
         for query in &self.queries {
-            query.get().find_highlights(result);
+            query.find_highlights(result);
 
             highlights.append(&mut result.highlighted_parts);
         }
