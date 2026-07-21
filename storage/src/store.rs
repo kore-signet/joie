@@ -228,10 +228,7 @@ impl<T: SerializableToFile> RkyvStorageBuilder<T> {
         let mut writer = self.serializer.into_serializer().into_inner();
         writer.flush()?;
         let (file, _) = writer.into_parts();
-        // let serialized_values = rkyv::to_bytes::<_, 1024>(&values).unwrap();
-        // file.set_len(serialized_values.len() as u64)?;
         let map = unsafe { MmapOptions::new().populate().map_mut(&file)? };
-        // map.copy_from_slice(serialized_values.as_bytes());
 
         Ok(RkyvStorage {
             positions: self.positions,

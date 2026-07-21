@@ -20,7 +20,7 @@ pub struct SearchResult<'a, M: Archive> {
 }
 
 impl<'a, M: Archive> SearchResult<'a, M> {
-    pub fn highlights(&'a self) -> Vec<SentencePart> {
+    pub fn highlights(&'a self) -> Vec<SentencePart<'a>> {
         highlight_by_ranges(&self.highlighted_parts, &self.sentence.text)
     }
 }

@@ -6,21 +6,21 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bytemuck = { version = "1.13.1", features = ["derive"] }
-logos = "0.13.0"
-memchr = "2.5.0"
-peg = "0.8.1"
+bytemuck = { version = "1.25.2", features = ["derive"] }
+logos = "0.16.1"
+memchr = "2.8.2"
+peg = "0.8.6"
 perfect-map = { git = "https://github.com/kore-signet/perfect-map", version = "0.1.0" }
-rayon = "1.7.0"
+rayon = "1.12.0"
 rkyv = { version = "0.7.42", features = ["smallvec"] }
 rust-stemmers = "1.2.0"
-serde = { version = "1.0.171", features = ["derive"], optional = true }
-postcard = { version = "1.0.4", features = ["use-std"], optional = true }
-smallvec = { version = "1.11.0", features = ["union", "const_generics"] }
+serde = { version = "1.0", features = ["derive"], optional = true }
+postcard = { version = "1.1", features = ["use-std"], optional = true }
+smallvec = { version = "1.15", features = ["union", "const_generics"] }
 smartstring = { version = "1.0.1" }
 storage = { path = "../storage" }
-unicode-segmentation = "1.10.1"
-enum_dispatch = "0.3.12"
+unicode-segmentation = "1.13"
+enum_dispatch = "0.3.13"
 
 [features]
 # default = ["persistence"]

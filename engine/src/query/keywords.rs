@@ -67,9 +67,6 @@ where
             SentenceIdList { ids }
         };
 
-        //     ids
-        // };
-
         if DF::needed() && !caller.intersect() {
             ids.retain(|id| {
                 self.document_filter

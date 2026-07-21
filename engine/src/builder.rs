@@ -72,7 +72,7 @@ where
             assert!(bytemuck::cast::<SentenceId, u64>(id) != 0);
 
             for term in &sentence.terms {
-                let entry = self.term_to_sentence.entry(*term).or_insert_with(Vec::new);
+                let entry = self.term_to_sentence.entry(*term).or_default();
 
                 entry.push(SentenceId {
                     doc: doc.id,
@@ -86,14 +86,6 @@ where
         self.doc_storage.insert(doc.id, doc.data);
         self.doc_metadata.insert(doc.id, doc.metadata);
     }
-
-    // pub fn build(self) -> io::Result<Database<D, DM, SM>> {
-    //     self.build_in_tempdir(TempDir::new()?)
-    // }
-
-    // pub fn build_in(self, dir: impl AsRef<Path>) -> io::Result<Database<D, DM, SM>> {
-    //     self.build_in_tempdir(TempDir::new_in(dir)?)
-    // }
 
     pub fn build_in(mut self, dir: impl AsRef<Path>) -> io::Result<Database<D, DM, SM>> {
         for (_, val) in self.term_to_sentence.iter_mut() {

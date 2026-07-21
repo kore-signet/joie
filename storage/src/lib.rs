@@ -72,22 +72,18 @@ impl<K: Hash + Sync + Send + Clone + PartialEq + Debug, V: bytemuck::Pod>
         let hasher = GOFunction::from_slice_with_conf(&keys, conf);
 
         let mut storage_builder = MultiStorageBuilder::new(vals.len(), file);
-        // let mut reordered_vals = Vec::with_capacity(vals.len());
         let mut reordered_keys: Vec<K> = Vec::with_capacity(keys.len());
 
         for (k, v) in keys.into_iter().zip(vals.iter()) {
             let new_idx = hasher.get(&k).unwrap() as usize;
             storage_builder.serialize(new_idx, v.as_ref())?;
-            // reordered_vals.spare_capacity_mut()[new_idx].write(v.as_ref().to_vec());
             reordered_keys.spare_capacity_mut()[new_idx].write(k);
         }
 
         unsafe {
             reordered_keys.set_len(vals.len());
-            // reordered_vals.set_len(vals.len());
         }
 
-        // let storage = MultiStorage::build(&reordered_vals, file)?;
         Ok(ImmutableMap {
             hasher,
             keys: reordered_keys,
